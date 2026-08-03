@@ -92,6 +92,8 @@ private:
     void RenderQuickMenu(ImDrawList *dl, ImVec2 displaySize);
     void RenderSaveStatesMenu(ImDrawList *dl, ImVec2 displaySize);
     void RenderSettingsMenu(ImDrawList *dl, ImVec2 displaySize);
+    void RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize);
+    void EnsureFocusTexture();
     void RenderHelpersBar(ImDrawList *dl, ImVec2 displaySize);
     void RenderStatusBar(ImDrawList *dl, ImVec2 displaySize);
     void RenderRAAlerts(ImDrawList *dl, ImVec2 displaySize, float deltaTime);
@@ -150,6 +152,7 @@ private:
     void LoadSVGIcon();
 
     unsigned int m_avatarTexture = 0;
+    unsigned int m_focusTexture = 0;
     std::string m_nickname;
     void LoadAccountData();
     void RenderSocialArea(ImDrawList *dl, ImVec2 displaySize);
