@@ -27,6 +27,11 @@ fbneo.dat
 
 # libretro
 /.github
+!/.github/
+/.github/*
+!/.github/workflows/
+/.github/workflows/*
+!/.github/workflows/build-switch.yml
 *.so
 *.o
 *.d
@@ -36,6 +41,6 @@ src/burner/libretro/pgmspritecreate
 !gamelist.txt
 !src/dep/generated/
 
-build_tico
+build_GBAStation
 
 *.a

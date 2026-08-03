@@ -1,0 +1,56 @@
+name: Build GBAStation FBNeo for Nintendo Switch
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-switch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    container:
+      image: devkitpro/devkita64:latest
+    steps:
+      - name: Check out FBNeo source and third-party dependencies
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install Switch dependencies
+        shell: bash
+        run: dkp-pacman -S --noconfirm --needed switch-dev switch-curl
+
+      - name: Build release NRO
+        shell: bash
+        run: |
+          chmod +x build_local.sh build_fbneo_nro.sh
+          bash build_local.sh --clean -j "$(nproc)"
+          test -s GBAStationFBNeoStub.nro
+          sha256sum GBAStationFBNeoStub.nro > GBAStationFBNeoStub.nro.sha256
+
+      - name: Upload Nintendo Switch build
+        uses: actions/upload-artifact@v4
+        with:
+          name: GBAStation-FBNeo-Switch-${{ github.sha }}
+          path: |
+            GBAStationFBNeoStub.nro
+            GBAStationFBNeoStub.nro.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release assets
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            GBAStationFBNeoStub.nro
+            GBAStationFBNeoStub.nro.sha256

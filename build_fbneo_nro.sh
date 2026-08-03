@@ -13,8 +13,12 @@ LIBNX=$DEVKITPRO/libnx
 
 # Project root
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
-BUILD_DIR="$ROOT_DIR/build_tico"
-TICO_DIR="$ROOT_DIR/tico"
+BUILD_DIR="$ROOT_DIR/build_GBAStation"
+GBASTATION_DIR="$ROOT_DIR/GBAStation"
+export TMPDIR="$ROOT_DIR/.codex_tmp/msys_tmp"
+export TMP="$TMPDIR"
+export TEMP="$TMPDIR"
+mkdir -p "$TMPDIR"
 
 # Prefer a locally built Mesa tree when present so the NRO doesn't keep
 # embedding the older portlibs OpenGL stack.
@@ -81,7 +85,7 @@ echo "--- Step 1: Building FBNeo static library ---"
 
 cd "$ROOT_DIR/src/burner/libretro"
 # make -f Makefile clean platform=libnx 2>/dev/null || true
-make -f Makefile -j$(nproc) platform=libnx
+make -f Makefile -j"${JOBS:-$(nproc)}" platform=libnx
 
 STATIC_LIB="$ROOT_DIR/src/burner/libretro/fbneo_libretro_libnx.a"
 if [ ! -f "$STATIC_LIB" ]; then
@@ -92,9 +96,9 @@ echo "Static library built: $STATIC_LIB"
 
 cd "$ROOT_DIR"
 # ============================================================
-# Step 2: Compile Tico overlay sources
+# Step 2: Compile GBAStation overlay sources
 # ============================================================
-echo "--- Step 2: Compiling Tico overlay sources ---"
+echo "--- Step 2: Compiling GBAStation overlay sources ---"
 
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
@@ -106,7 +110,7 @@ COMMON_FLAGS="-march=armv8-a+crc+crypto -mtune=cortex-a57 -mtp=soft -fPIE -O2 -g
 COMMON_FLAGS="$COMMON_FLAGS -ffunction-sections -fdata-sections -DDISABLE_LOGGING -D__SWITCH__ -DHAVE_LIBNX"
 COMMON_FLAGS="$COMMON_FLAGS -DIMGUI_IMPL_OPENGL_LOADER_CUSTOM -include glad.h"
 COMMON_FLAGS="$COMMON_FLAGS -I$LIBNX/include -I$PORTLIBS/include -I$PORTLIBS/include/SDL2"
-COMMON_FLAGS="$COMMON_FLAGS -I$TICO_DIR -I$TICO_DIR/deps"
+COMMON_FLAGS="$COMMON_FLAGS -I$GBASTATION_DIR -I$GBASTATION_DIR/deps"
 COMMON_FLAGS="$COMMON_FLAGS -I$ROOT_DIR/src/burner/libretro/libretro-common/include"
 COMMON_FLAGS="$COMMON_FLAGS -I$ROOT_DIR/rcheevos/include -DRC_CLIENT_SUPPORTS_HASH"
 
@@ -116,23 +120,23 @@ fi
 
 CXXFLAGS="$COMMON_FLAGS -std=gnu++17 -fvisibility-inlines-hidden -fno-rtti -fno-exceptions"
 
-# Tico C++ sources
-TICO_SOURCES=(
-    "$TICO_DIR/TicoMain.cpp"
-    "$TICO_DIR/TicoCore.cpp"
-    "$TICO_DIR/TicoShaders.cpp"
-    "$TICO_DIR/TicoOverlay.cpp"
-    "$TICO_DIR/TicoTranslationManager.cpp"
-    "$TICO_DIR/TicoStubs.cpp"
+# GBAStation C++ sources
+GBASTATION_SOURCES=(
+    "$GBASTATION_DIR/GBAStationMain.cpp"
+    "$GBASTATION_DIR/GBAStationCore.cpp"
+    "$GBASTATION_DIR/GBAStationShaders.cpp"
+    "$GBASTATION_DIR/GBAStationOverlay.cpp"
+    "$GBASTATION_DIR/GBAStationTranslationManager.cpp"
+    "$GBASTATION_DIR/GBAStationStubs.cpp"
 )
 
 # glad.c (OpenGL loader)
-TICO_C_SOURCES=(
-    "$TICO_DIR/glad.c"
+GBASTATION_C_SOURCES=(
+    "$GBASTATION_DIR/glad.c"
 )
 
 # ImGui sources
-IMGUI_DIR="$TICO_DIR/deps/imgui"
+IMGUI_DIR="$GBASTATION_DIR/deps/imgui"
 IMGUI_SOURCES=(
     "$IMGUI_DIR/imgui.cpp"
     "$IMGUI_DIR/imgui_draw.cpp"
@@ -149,10 +153,10 @@ IMGUI_FLAGS="-I$IMGUI_DIR -I$IMGUI_DIR/backends"
 RCHEEVOS_DIR="$ROOT_DIR/rcheevos"
 RCHEEVOS_SOURCES=($(find "$RCHEEVOS_DIR/src" -type f -name "*.c" ! -name "rc_client_external.c" 2>/dev/null || true))
 
-TICO_OBJS=()
+GBASTATION_OBJS=()
 
-# Compile Tico C++ sources
-for src in "${TICO_SOURCES[@]}"; do
+# Compile GBAStation C++ sources
+for src in "${GBASTATION_SOURCES[@]}"; do
     if [ ! -f "$src" ]; then 
         echo "Missing source file (optional): $src"
         continue
@@ -164,11 +168,11 @@ for src in "${TICO_SOURCES[@]}"; do
         echo "Error compiling $src"
         exit 1
     fi
-    TICO_OBJS+=("$obj")
+    GBASTATION_OBJS+=("$obj")
 done
 
 # Compile glad.c
-for src in "${TICO_C_SOURCES[@]}"; do
+for src in "${GBASTATION_C_SOURCES[@]}"; do
     if [ ! -f "$src" ]; then continue; fi
     obj="$BUILD_DIR/$(basename ${src%.c}.o)"
     echo "  CC  $src"
@@ -177,7 +181,7 @@ for src in "${TICO_C_SOURCES[@]}"; do
         echo "Error compiling $src"
         exit 1
     fi
-    TICO_OBJS+=("$obj")
+    GBASTATION_OBJS+=("$obj")
 done
 
 # Compile rcheevos sources
@@ -192,7 +196,7 @@ for src in "${RCHEEVOS_SOURCES[@]}"; do
         echo "Error compiling $src"
         exit 1
     fi
-    TICO_OBJS+=("$obj")
+    GBASTATION_OBJS+=("$obj")
 done
 
 # Compile libretro-common sources (skipped by FBNeo since STATIC_LINKING=1)
@@ -233,7 +237,7 @@ for src in "${COMM_SOURCES[@]}"; do
         echo "Error compiling $src"
         exit 1
     fi
-    TICO_OBJS+=("$obj")
+    GBASTATION_OBJS+=("$obj")
 done
 
 # Compile ImGui sources
@@ -246,20 +250,20 @@ for src in "${IMGUI_SOURCES[@]}"; do
         echo "Error compiling $src"
         exit 1
     fi
-    TICO_OBJS+=("$obj")
+    GBASTATION_OBJS+=("$obj")
 done
 
-echo "Compiled ${#TICO_OBJS[@]} tico/imgui/rcheevos objects"
+echo "Compiled ${#GBASTATION_OBJS[@]} GBAStation/imgui/rcheevos objects"
 
 # ============================================================
 # Step 3: Link everything into ELF
 # ============================================================
-echo "--- Step 3: Linking fbneo_tico.elf ---"
+echo "--- Step 3: Linking fbneo_GBAStation.elf ---"
 
-ELF_OUTPUT="$BUILD_DIR/fbneo_tico.elf"
+ELF_OUTPUT="$BUILD_DIR/fbneo_GBAStation.elf"
 
 LINK_FLAGS="-specs=$LIBNX/switch.specs -march=armv8-a+crc+crypto -mtune=cortex-a57 -mtp=soft -fPIE"
-LINK_FLAGS="$LINK_FLAGS -Wl,--gc-sections -Wl,-Map=$BUILD_DIR/fbneo_tico.map"
+LINK_FLAGS="$LINK_FLAGS -Wl,--gc-sections -Wl,-Map=$BUILD_DIR/fbneo_GBAStation.map"
 
 LINK_LIBS="-L$PORTLIBS/lib -L$LIBNX/lib"
 LINK_LIBS="$LINK_LIBS -lSDL2_mixer -lmpg123 -lmodplug -lopusfile -lopus -lvorbisidec -logg -lSDL2"
@@ -272,7 +276,7 @@ LINK_LIBS="$LINK_LIBS -lcurl -lmbedtls -lmbedx509 -lmbedcrypto -lz -lzstd"
 LINK_LIBS="$LINK_LIBS -lnx -lm -lstdc++ -lpthread"
 
 $CXX $LINK_FLAGS \
-    "${TICO_OBJS[@]}" \
+    "${GBASTATION_OBJS[@]}" \
     "$STATIC_LIB" \
     "${MESA_ARCHIVES[@]}" \
     $LINK_LIBS \
@@ -303,9 +307,9 @@ ROMFS_DIR="$BUILD_DIR/romfs"
 rm -rf "$ROMFS_DIR"
 mkdir -p "$ROMFS_DIR"
 
-[ -d "$TICO_DIR/fonts" ] && cp -r "$TICO_DIR/fonts" "$ROMFS_DIR/"
-[ -d "$TICO_DIR/lang" ] && cp -r "$TICO_DIR/lang" "$ROMFS_DIR/"
-[ -d "$TICO_DIR/assets" ] && cp -r "$TICO_DIR/assets" "$ROMFS_DIR/"
+[ -d "$GBASTATION_DIR/fonts" ] && cp -r "$GBASTATION_DIR/fonts" "$ROMFS_DIR/"
+[ -d "$GBASTATION_DIR/lang" ] && cp -r "$GBASTATION_DIR/lang" "$ROMFS_DIR/"
+[ -d "$GBASTATION_DIR/assets" ] && cp -r "$GBASTATION_DIR/assets" "$ROMFS_DIR/"
 
 ELF2NRO_ARGS=(--nacp="$NACP_FILE")
 
