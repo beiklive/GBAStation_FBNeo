@@ -32,6 +32,7 @@
 #endif
 
 #include "imgui.h"
+#include "imgui_internal.h"
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_opengl3.h"
 
@@ -73,50 +74,71 @@ static bool g_controllersDirty = true;
 static std::unordered_map<std::string, std::string> g_configValues;
 
 #ifdef __SWITCH__
-static const ImWchar kGBAStationChineseRanges[] = {
-    0x0020, 0x00FF,
-    0x2000, 0x30FF,
-    0x3400, 0x9FFF,
-    0,
-};
-
 static const ImWchar kGBAStationMaterialRanges[] = {
     0xE000, 0xF8FF,
     0,
 };
 
+static const ImWchar *GetGBAStationMenuGlyphRanges(ImGuiIO &io)
+{
+    static ImVector<ImWchar> ranges;
+    if (!ranges.empty()) return ranges.Data;
+
+    ImFontGlyphRangesBuilder builder;
+    builder.AddRanges(io.Fonts->GetGlyphRangesDefault());
+    builder.AddRanges(io.Fonts->GetGlyphRangesChineseSimplifiedCommon());
+    builder.AddText(u8"返回游戏 保存状态 读取状态 金手指 画面设置 功能设置 重置游戏 退出游戏 核心设置 按键映射 "
+                    u8"视频 音频 输入 性能 系统 语言 区域 纹理 过滤 开启 关闭 自动 取消 确认 保存 读取 "
+                    u8"模拟器 菜单 游戏 暂停 快进 截图 预览 存档 槽位 选项 分类 默认 当前");
+    builder.BuildRanges(&ranges);
+    return ranges.Data;
+}
+
 static ImFont *AddGBAStationSystemFont(ImGuiIO &io, float size)
 {
     if (R_FAILED(plInitialize(PlServiceType_User)))
-        return nullptr;
-
-    PlFontData sharedFont{};
-    Result rc = plGetSharedFontByType(&sharedFont, PlSharedFontType_ExtChineseSimplified);
-    if (R_FAILED(rc) || !sharedFont.address || sharedFont.size == 0)
-        rc = plGetSharedFontByType(&sharedFont, PlSharedFontType_ChineseSimplified);
-    if (R_FAILED(rc) || !sharedFont.address || sharedFont.size == 0)
     {
-        plExit();
+        LOG_WARN("HOME", "Switch shared font service is unavailable");
         return nullptr;
     }
 
-    void *fontData = std::malloc(sharedFont.size);
-    if (!fontData)
+    // Match the GBAStation 3DS overlay: the extended Chinese face is the
+    // primary font, with the regional and standard faces filling its gaps.
+    const PlSharedFontType fontTypes[] = {
+        PlSharedFontType_ExtChineseSimplified,
+        PlSharedFontType_ChineseSimplified,
+        PlSharedFontType_Standard,
+    };
+    ImFont *font = nullptr;
+    int loadedFonts = 0;
+    for (const PlSharedFontType type : fontTypes)
     {
-        plExit();
-        return nullptr;
+        PlFontData sharedFont{};
+        if (R_FAILED(plGetSharedFontByType(&sharedFont, type)) || !sharedFont.address || sharedFont.size == 0)
+            continue;
+
+        void *fontData = std::malloc(sharedFont.size);
+        if (!fontData) continue;
+        std::memcpy(fontData, sharedFont.address, sharedFont.size);
+
+        ImFontConfig config;
+        config.OversampleH = 1;
+        config.OversampleV = 1;
+        config.MergeMode = font != nullptr;
+        ImFont *added = io.Fonts->AddFontFromMemoryTTF(fontData, static_cast<int>(sharedFont.size),
+                                                         size, &config, GetGBAStationMenuGlyphRanges(io));
+        if (!added)
+        {
+            std::free(fontData);
+            continue;
+        }
+        if (!font) font = added;
+        ++loadedFonts;
     }
-    std::memcpy(fontData, sharedFont.address, sharedFont.size);
     plExit();
-
-    ImFontConfig config;
-    config.OversampleH = 1;
-    config.OversampleV = 1;
-    ImFont *font = io.Fonts->AddFontFromMemoryTTF(fontData, static_cast<int>(sharedFont.size),
-                                                    size, &config, kGBAStationChineseRanges);
     if (!font)
     {
-        std::free(fontData);
+        LOG_ERROR("HOME", "No usable Switch shared font was loaded");
         return nullptr;
     }
     io.FontDefault = font;
@@ -126,6 +148,8 @@ static ImFont *AddGBAStationSystemFont(ImGuiIO &io, float size)
     iconConfig.PixelSnapH = true;
     io.Fonts->AddFontFromFileTTF("romfs:/fonts/MaterialIcons-Regular.ttf", size,
                                  &iconConfig, kGBAStationMaterialRanges);
+    LOG_INFO("HOME", "Switch menu font atlas loaded from %d shared font source(s), Material Icons=%s",
+             loadedFonts, io.Fonts->Fonts.Size > 0 ? "merged" : "unavailable");
     return font;
 }
 
