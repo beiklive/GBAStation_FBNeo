@@ -630,12 +630,12 @@ void GBAStationOverlay::RenderGame(ImDrawList *dl, ImVec2 displaySize, unsigned 
 void GBAStationOverlay::RenderOverlayBackground(ImDrawList *dl, ImVec2 displaySize) {
     float t = std::min(m_animTimer / 0.4f, 1.0f);
     float ease = 1.0f - std::pow(1.0f - t, 3.0f);
-    const int alpha = static_cast<int>(242 * ease);
+    const int alpha = static_cast<int>(92 * ease);
     dl->AddRectFilled(ImVec2(0, 0), displaySize, IM_COL32(4, 7, 13, alpha));
     dl->AddRectFilled(ImVec2(0, 0), ImVec2(displaySize.x, 74.0f),
-                      IM_COL32(3, 9, 16, static_cast<int>(252 * ease)));
+                      IM_COL32(3, 9, 16, static_cast<int>(116 * ease)));
     dl->AddRectFilled(ImVec2(0, displaySize.y - 50.0f), displaySize,
-                      IM_COL32(6, 14, 23, static_cast<int>(250 * ease)));
+                      IM_COL32(6, 14, 23, static_cast<int>(116 * ease)));
 }
 
 void GBAStationOverlay::RenderTitleCard(ImDrawList *dl, ImVec2 displaySize) {
@@ -742,8 +742,8 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
     int active = m_quickMenuSelection;
     if (m_currentMenu == OverlayMenu::SaveStates) active = m_isSaveMode ? 1 : 2;
     else if (m_currentMenu == OverlayMenu::Settings) active = m_quickMenuSelection == 5 ? 5 : 4;
-    const ImU32 bg = IM_COL32(9, 13, 23, (int)(238 * ease));
-    const ImU32 panel = IM_COL32(19, 25, 40, (int)(236 * ease));
+    const ImU32 bg = IM_COL32(9, 13, 23, (int)(158 * ease));
+    const ImU32 panel = IM_COL32(19, 25, 40, (int)(178 * ease));
     const ImU32 line = IM_COL32(105, 126, 165, (int)(110 * ease));
     const ImU32 text = IM_COL32(243, 247, 255, (int)(255 * ease));
     const ImU32 muted = IM_COL32(178, 190, 213, (int)(240 * ease));
@@ -775,7 +775,7 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
     }
     const float contentX = min.x + side + 34 * scale;
     const float contentRight = max.x - 34 * scale;
-    const float rowY = min.y + header + 38 * scale;
+    const float rowY = min.y + header + 140 * scale;
     dl->AddText(font, titleSize, ImVec2(contentX, min.y + 18 * scale), text, tabs[active]);
     auto drawRow = [&](int i, bool selected, const std::string &label, const std::string &value) {
         ImVec2 rowMin(contentX, rowY + i * 58 * scale), rowMax(contentRight, rowY + (i + 1) * 58 * scale - 5 * scale);
@@ -784,7 +784,8 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
         if (!value.empty()) { ImVec2 s = font->CalcTextSizeA(labelSize, FLT_MAX, 0, value.c_str()); dl->AddText(font, labelSize, ImVec2(rowMax.x - s.x - 18*scale, rowMin.y + 16*scale), text, value.c_str()); }
     };
     if (m_currentMenu == OverlayMenu::SaveStates) {
-        for (int i=0; i<4; ++i) { struct stat st{}; const bool exists = m_core && stat(GetStatePath(m_core, i).c_str(), &st) == 0; drawRow(i, i == m_saveStateSlot, "存档槽 " + std::to_string(i + 1), exists ? "已有存档" : "空"); }
+        const int firstSlot = std::clamp(m_saveStateSlot - 5, 0, 4);
+        for (int row = 0; row < 6; ++row) { const int slot = firstSlot + row; struct stat st{}; const bool exists = m_core && stat(GetStatePath(m_core, slot).c_str(), &st) == 0; drawRow(row, slot == m_saveStateSlot, "存档槽 " + std::to_string(slot + 1), exists ? "已有存档" : "空"); }
     } else if (m_currentMenu == OverlayMenu::Settings) {
         const std::string mode = m_displayMode == GambatteDisplayMode::Integer ? "整数缩放" : "比例显示";
         std::string size = m_displayMode == GambatteDisplayMode::Integer ? "自动" : "原始比例";
@@ -792,6 +793,12 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
         drawRow(0, m_settingsSelection == 0, "显示模式", mode); drawRow(1, m_settingsSelection == 1, "画面比例", size); drawRow(2, m_settingsSelection == 2, "着色器", "切换");
     } else {
         dl->AddText(font, labelSize, ImVec2(contentX, rowY), muted, desc[active]);
+        if (active == 1 || active == 2) {
+            for (int slot = 0; slot < 6; ++slot) { struct stat st{}; const bool exists = m_core && stat(GetStatePath(m_core, slot).c_str(), &st) == 0; drawRow(slot, false, "存档槽 " + std::to_string(slot + 1), exists ? "已有存档" : "空"); }
+        } else if (active == 4 || active == 5) {
+            drawRow(0, false, "显示模式", m_displayMode == GambatteDisplayMode::Integer ? "整数缩放" : "比例显示");
+            drawRow(1, false, "画面比例", "进入后调整");
+        }
     }
 }
 
@@ -927,12 +934,14 @@ bool GBAStationOverlay::HandleInput(SDL_GameController *controller) {
     if (!togglePressed) m_toggleHeld = false;
     if (m_currentMenu == OverlayMenu::None) return false;
 
-    bool up = BindingPressed(controller, "arcade.handle.up", "PAD_UP");
-    bool down = BindingPressed(controller, "arcade.handle.down", "PAD_DOWN");
-    bool left = BindingPressed(controller, "arcade.handle.left", "PAD_LEFT");
-    bool right = BindingPressed(controller, "arcade.handle.right", "PAD_RIGHT");
-    bool confirm = BindingPressed(controller, "arcade.handle.a", "PAD_A");
-    bool back = BindingPressed(controller, "arcade.handle.b", "PAD_B");
+    // The menu always uses physical Switch navigation, independent of arcade
+    // gameplay remaps in config.cfg. SDL B is Switch A; SDL A is Switch B.
+    bool up = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_UP);
+    bool down = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_DOWN);
+    bool left = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_LEFT);
+    bool right = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_RIGHT);
+    bool confirm = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_B);
+    bool back = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_A);
     Sint16 axisY = SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_LEFTY);
     Sint16 axisX = SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_LEFTX);
     if (axisY < -16000) up = true; if (axisY > 16000) down = true;
@@ -941,14 +950,14 @@ bool GBAStationOverlay::HandleInput(SDL_GameController *controller) {
     if (up && !m_upHeld && debounced) {
         m_upHeld = true; m_lastInputTime = now;
         if (m_currentMenu == OverlayMenu::QuickMenu) m_quickMenuSelection = (m_quickMenuSelection + 7) % 8;
-        else if (m_currentMenu == OverlayMenu::SaveStates) m_saveStateSlot = (m_saveStateSlot + 3) % 4;
+        else if (m_currentMenu == OverlayMenu::SaveStates) m_saveStateSlot = (m_saveStateSlot + 9) % 10;
         else if (m_currentMenu == OverlayMenu::Settings) m_settingsSelection = (m_settingsSelection + 2) % 3;
     }
     if (!up) m_upHeld = false;
     if (down && !m_downHeld && debounced) {
         m_downHeld = true; m_lastInputTime = now;
         if (m_currentMenu == OverlayMenu::QuickMenu) m_quickMenuSelection = (m_quickMenuSelection + 1) % 8;
-        else if (m_currentMenu == OverlayMenu::SaveStates) m_saveStateSlot = (m_saveStateSlot + 1) % 4;
+        else if (m_currentMenu == OverlayMenu::SaveStates) m_saveStateSlot = (m_saveStateSlot + 1) % 10;
         else if (m_currentMenu == OverlayMenu::Settings) m_settingsSelection = (m_settingsSelection + 1) % 3;
     }
     if (!down) m_downHeld = false;
