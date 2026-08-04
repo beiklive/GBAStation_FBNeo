@@ -71,6 +71,8 @@ public:
     /// @brief Load a game ROM (N64 ROMs are loaded into memory)
     bool LoadGame(const std::string &path);
     bool GetVariable(const char *key, const char **value);
+    std::string GetCoreOption(const std::string &key, const std::string &fallback = "") const;
+    void SetCoreOption(const std::string &key, const std::string &value);
 
     /// @brief OSD notification accessors
     const std::string& GetOSDMessage() const { return m_osdMessage; }

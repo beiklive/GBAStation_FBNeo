@@ -69,6 +69,25 @@ namespace UIStyle {
     }
 }
 
+static void CycleFBNeoOption(GBAStationCore *core, const char *key,
+                             std::initializer_list<const char *> values, int direction)
+{
+    if (!core || values.size() == 0)
+        return;
+    const std::string current = core->GetCoreOption(key, *values.begin());
+    int index = 0;
+    int candidate = 0;
+    for (const char *value : values) {
+        if (current == value) { index = candidate; break; }
+        ++candidate;
+    }
+    const int count = static_cast<int>(values.size());
+    index = (index + direction + count) % count;
+    auto value = values.begin();
+    std::advance(value, index);
+    core->SetCoreOption(key, *value);
+}
+
 namespace {
 
 std::unordered_map<std::string, std::string> g_overlayBindings;
@@ -787,10 +806,17 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
         const int firstSlot = std::clamp(m_saveStateSlot - 5, 0, 4);
         for (int row = 0; row < 6; ++row) { const int slot = firstSlot + row; struct stat st{}; const bool exists = m_core && stat(GetStatePath(m_core, slot).c_str(), &st) == 0; drawRow(row, slot == m_saveStateSlot, "存档槽 " + std::to_string(slot + 1), exists ? "已有存档" : "空"); }
     } else if (m_currentMenu == OverlayMenu::Settings) {
-        const std::string mode = m_displayMode == GambatteDisplayMode::Integer ? "整数缩放" : "比例显示";
-        std::string size = m_displayMode == GambatteDisplayMode::Integer ? "自动" : "原始比例";
-        if (m_displaySize == GambatteDisplaySize::_1x) size = "1x"; else if (m_displaySize == GambatteDisplaySize::_2x) size = "2x"; else if (m_displaySize == GambatteDisplaySize::Stretch) size = "拉伸"; else if (m_displaySize == GambatteDisplaySize::_4_3) size = "4:3"; else if (m_displaySize == GambatteDisplaySize::_16_9) size = "16:9";
-        drawRow(0, m_settingsSelection == 0, "显示模式", mode); drawRow(1, m_settingsSelection == 1, "画面比例", size); drawRow(2, m_settingsSelection == 2, "着色器", "切换");
+        if (active == 5) {
+            const char *labels[] = {"跳帧模式", "固定跳帧", "CPU 速度", "低通滤波", "FM 插值", "采样率", "强制 60Hz", "32 位色深"};
+            const char *keys[] = {"fbneo-frameskip-type", "fbneo-fixed-frameskip", "fbneo-cpu-speed-adjust", "fbneo-lowpass-filter", "fbneo-fm-interpolation", "fbneo-samplerate", "fbneo-force-60hz", "fbneo-allow-depth-32"};
+            const int first = std::clamp(m_settingsSelection - 3, 0, 2);
+            for (int row = 0; row < 6; ++row) { const int option = first + row; drawRow(row, option == m_settingsSelection, labels[option], m_core ? m_core->GetCoreOption(keys[option], "默认") : "默认"); }
+        } else {
+            const std::string mode = m_displayMode == GambatteDisplayMode::Integer ? "整数缩放" : "比例显示";
+            std::string size = m_displayMode == GambatteDisplayMode::Integer ? "自动" : "原始比例";
+            if (m_displaySize == GambatteDisplaySize::_1x) size = "1x"; else if (m_displaySize == GambatteDisplaySize::_2x) size = "2x"; else if (m_displaySize == GambatteDisplaySize::Stretch) size = "拉伸"; else if (m_displaySize == GambatteDisplaySize::_4_3) size = "4:3"; else if (m_displaySize == GambatteDisplaySize::_16_9) size = "16:9";
+            drawRow(0, m_settingsSelection == 0, "显示模式", mode); drawRow(1, m_settingsSelection == 1, "画面比例", size); drawRow(2, m_settingsSelection == 2, "着色器", "切换");
+        }
     } else {
         dl->AddText(font, labelSize, ImVec2(contentX, rowY), muted, desc[active]);
         if (active == 1 || active == 2) {
@@ -951,14 +977,14 @@ bool GBAStationOverlay::HandleInput(SDL_GameController *controller) {
         m_upHeld = true; m_lastInputTime = now;
         if (m_currentMenu == OverlayMenu::QuickMenu) m_quickMenuSelection = (m_quickMenuSelection + 7) % 8;
         else if (m_currentMenu == OverlayMenu::SaveStates) m_saveStateSlot = (m_saveStateSlot + 9) % 10;
-        else if (m_currentMenu == OverlayMenu::Settings) m_settingsSelection = (m_settingsSelection + 2) % 3;
+        else if (m_currentMenu == OverlayMenu::Settings) m_settingsSelection = (m_settingsSelection + (m_quickMenuSelection == 5 ? 7 : 2)) % (m_quickMenuSelection == 5 ? 8 : 3);
     }
     if (!up) m_upHeld = false;
     if (down && !m_downHeld && debounced) {
         m_downHeld = true; m_lastInputTime = now;
         if (m_currentMenu == OverlayMenu::QuickMenu) m_quickMenuSelection = (m_quickMenuSelection + 1) % 8;
         else if (m_currentMenu == OverlayMenu::SaveStates) m_saveStateSlot = (m_saveStateSlot + 1) % 10;
-        else if (m_currentMenu == OverlayMenu::Settings) m_settingsSelection = (m_settingsSelection + 1) % 3;
+        else if (m_currentMenu == OverlayMenu::Settings) m_settingsSelection = (m_settingsSelection + 1) % (m_quickMenuSelection == 5 ? 8 : 3);
     }
     if (!down) m_downHeld = false;
 
@@ -969,7 +995,18 @@ bool GBAStationOverlay::HandleInput(SDL_GameController *controller) {
     if (!right) m_rightHeld = false;
 
     if (dirChanged && m_currentMenu == OverlayMenu::Settings) {
-        if (m_settingsSelection == 0) {
+        if (m_quickMenuSelection == 5) {
+            switch (m_settingsSelection) {
+            case 0: CycleFBNeoOption(m_core, "fbneo-frameskip-type", {"disabled", "fixed_interval", "auto", "auto_aggressive"}, dir); break;
+            case 1: CycleFBNeoOption(m_core, "fbneo-fixed-frameskip", {"0", "1", "2", "3", "4"}, dir); break;
+            case 2: CycleFBNeoOption(m_core, "fbneo-cpu-speed-adjust", {"100", "110", "120", "130", "140"}, dir); break;
+            case 3: CycleFBNeoOption(m_core, "fbneo-lowpass-filter", {"disabled", "enabled"}, dir); break;
+            case 4: CycleFBNeoOption(m_core, "fbneo-fm-interpolation", {"disabled", "enabled"}, dir); break;
+            case 5: CycleFBNeoOption(m_core, "fbneo-samplerate", {"22050", "32000", "44100", "48000"}, dir); break;
+            case 6: CycleFBNeoOption(m_core, "fbneo-force-60hz", {"disabled", "enabled"}, dir); break;
+            case 7: CycleFBNeoOption(m_core, "fbneo-allow-depth-32", {"disabled", "enabled"}, dir); break;
+            }
+        } else if (m_settingsSelection == 0) {
             m_displayMode = (m_displayMode == GambatteDisplayMode::Display) ? GambatteDisplayMode::Integer : GambatteDisplayMode::Display;
             m_displaySize = (m_displayMode == GambatteDisplayMode::Integer) ? GambatteDisplaySize::Auto : GambatteDisplaySize::_4_3;
             ApplyScalingSettings(true);
@@ -992,9 +1029,9 @@ bool GBAStationOverlay::HandleInput(SDL_GameController *controller) {
         m_confirmHeld = true; m_lastInputTime = now;
         if (m_currentMenu == OverlayMenu::QuickMenu) {
             switch (m_quickMenuSelection) {
-            case 0: m_isSaveMode = true; m_currentMenu = OverlayMenu::SaveStates; break;
-            case 1: m_isSaveMode = false; m_currentMenu = OverlayMenu::SaveStates; break;
-            case 2: m_currentMenu = OverlayMenu::SaveStates; m_isSaveMode = false; break;
+            case 0: Hide(); break;
+            case 1: m_isSaveMode = true; m_currentMenu = OverlayMenu::SaveStates; break;
+            case 2: m_isSaveMode = false; m_currentMenu = OverlayMenu::SaveStates; break;
             case 3:
             case 4:
             case 5: m_currentMenu = OverlayMenu::Settings; m_settingsSelection = 0; break;
@@ -1008,7 +1045,18 @@ bool GBAStationOverlay::HandleInput(SDL_GameController *controller) {
                 else { m_core->LoadState(sp); Hide(); m_animTimer = 0.4f; return true; }
             } else m_currentMenu = OverlayMenu::QuickMenu;
         } else if (m_currentMenu == OverlayMenu::Settings) {
-            if (m_settingsSelection == 0) {
+            if (m_quickMenuSelection == 5) {
+                switch (m_settingsSelection) {
+                case 0: CycleFBNeoOption(m_core, "fbneo-frameskip-type", {"disabled", "fixed_interval", "auto", "auto_aggressive"}, 1); break;
+                case 1: CycleFBNeoOption(m_core, "fbneo-fixed-frameskip", {"0", "1", "2", "3", "4"}, 1); break;
+                case 2: CycleFBNeoOption(m_core, "fbneo-cpu-speed-adjust", {"100", "110", "120", "130", "140"}, 1); break;
+                case 3: CycleFBNeoOption(m_core, "fbneo-lowpass-filter", {"disabled", "enabled"}, 1); break;
+                case 4: CycleFBNeoOption(m_core, "fbneo-fm-interpolation", {"disabled", "enabled"}, 1); break;
+                case 5: CycleFBNeoOption(m_core, "fbneo-samplerate", {"22050", "32000", "44100", "48000"}, 1); break;
+                case 6: CycleFBNeoOption(m_core, "fbneo-force-60hz", {"disabled", "enabled"}, 1); break;
+                case 7: CycleFBNeoOption(m_core, "fbneo-allow-depth-32", {"disabled", "enabled"}, 1); break;
+                }
+            } else if (m_settingsSelection == 0) {
                 m_displayMode = (m_displayMode == GambatteDisplayMode::Display) ? GambatteDisplayMode::Integer : GambatteDisplayMode::Display;
                 m_displaySize = (m_displayMode == GambatteDisplayMode::Integer) ? GambatteDisplaySize::Auto : GambatteDisplaySize::_4_3;
                 ApplyScalingSettings(true);

@@ -2106,6 +2106,21 @@ std::string GBAStationCore::GetConfigValue(const std::string &key, const std::st
     return defaultVal;
 }
 
+std::string GBAStationCore::GetCoreOption(const std::string &key, const std::string &fallback) const
+{
+    const auto it = m_configOptions.find(key);
+    return it == m_configOptions.end() ? fallback : it->second;
+}
+
+void GBAStationCore::SetCoreOption(const std::string &key, const std::string &value)
+{
+    if (m_configOptions[key] == value)
+        return;
+    m_configOptions[key] = value;
+    m_variablesUpdated = true;
+    GBAStation_debug_log("Runtime option %s=%s", key.c_str(), value.c_str());
+}
+
 bool GBAStationCore::GetVariable(const char *key, const char **value)
 {
     auto it = m_configOptions.find(key);
