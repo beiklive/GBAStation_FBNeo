@@ -945,6 +945,10 @@ void Render()
                 LOG_DEBUG("RENDER", "Frame %d: RunFrame returned", frameCount);
             }
         }
+        else
+        {
+            g_core->ApplyPendingOptions();
+        }
     }
 
     glViewport(0, 0, w, h);
