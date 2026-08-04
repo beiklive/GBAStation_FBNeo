@@ -997,12 +997,12 @@ bool GBAStationOverlay::HandleInput(SDL_GameController *controller) {
     if (dirChanged && m_currentMenu == OverlayMenu::Settings) {
         if (m_quickMenuSelection == 5) {
             switch (m_settingsSelection) {
-            case 0: CycleFBNeoOption(m_core, "fbneo-frameskip-type", {"disabled", "fixed_interval", "auto", "auto_aggressive"}, dir); break;
-            case 1: CycleFBNeoOption(m_core, "fbneo-fixed-frameskip", {"0", "1", "2", "3", "4"}, dir); break;
-            case 2: CycleFBNeoOption(m_core, "fbneo-cpu-speed-adjust", {"100", "110", "120", "130", "140"}, dir); break;
+            case 0: CycleFBNeoOption(m_core, "fbneo-frameskip-type", {"disabled", "Fixed", "Auto", "Manual"}, dir); break;
+            case 1: CycleFBNeoOption(m_core, "fbneo-fixed-frameskip", {"0", "1", "2", "3", "4", "5"}, dir); break;
+            case 2: CycleFBNeoOption(m_core, "fbneo-cpu-speed-adjust", {"100%", "110%", "120%", "130%", "140%"}, dir); break;
             case 3: CycleFBNeoOption(m_core, "fbneo-lowpass-filter", {"disabled", "enabled"}, dir); break;
-            case 4: CycleFBNeoOption(m_core, "fbneo-fm-interpolation", {"disabled", "enabled"}, dir); break;
-            case 5: CycleFBNeoOption(m_core, "fbneo-samplerate", {"22050", "32000", "44100", "48000"}, dir); break;
+            case 4: CycleFBNeoOption(m_core, "fbneo-fm-interpolation", {"disabled", "4-point 3rd order"}, dir); break;
+            case 5: CycleFBNeoOption(m_core, "fbneo-samplerate", {"44100", "48000"}, dir); break;
             case 6: CycleFBNeoOption(m_core, "fbneo-force-60hz", {"disabled", "enabled"}, dir); break;
             case 7: CycleFBNeoOption(m_core, "fbneo-allow-depth-32", {"disabled", "enabled"}, dir); break;
             }
@@ -1047,12 +1047,12 @@ bool GBAStationOverlay::HandleInput(SDL_GameController *controller) {
         } else if (m_currentMenu == OverlayMenu::Settings) {
             if (m_quickMenuSelection == 5) {
                 switch (m_settingsSelection) {
-                case 0: CycleFBNeoOption(m_core, "fbneo-frameskip-type", {"disabled", "fixed_interval", "auto", "auto_aggressive"}, 1); break;
-                case 1: CycleFBNeoOption(m_core, "fbneo-fixed-frameskip", {"0", "1", "2", "3", "4"}, 1); break;
-                case 2: CycleFBNeoOption(m_core, "fbneo-cpu-speed-adjust", {"100", "110", "120", "130", "140"}, 1); break;
+                case 0: CycleFBNeoOption(m_core, "fbneo-frameskip-type", {"disabled", "Fixed", "Auto", "Manual"}, 1); break;
+                case 1: CycleFBNeoOption(m_core, "fbneo-fixed-frameskip", {"0", "1", "2", "3", "4", "5"}, 1); break;
+                case 2: CycleFBNeoOption(m_core, "fbneo-cpu-speed-adjust", {"100%", "110%", "120%", "130%", "140%"}, 1); break;
                 case 3: CycleFBNeoOption(m_core, "fbneo-lowpass-filter", {"disabled", "enabled"}, 1); break;
-                case 4: CycleFBNeoOption(m_core, "fbneo-fm-interpolation", {"disabled", "enabled"}, 1); break;
-                case 5: CycleFBNeoOption(m_core, "fbneo-samplerate", {"22050", "32000", "44100", "48000"}, 1); break;
+                case 4: CycleFBNeoOption(m_core, "fbneo-fm-interpolation", {"disabled", "4-point 3rd order"}, 1); break;
+                case 5: CycleFBNeoOption(m_core, "fbneo-samplerate", {"44100", "48000"}, 1); break;
                 case 6: CycleFBNeoOption(m_core, "fbneo-force-60hz", {"disabled", "enabled"}, 1); break;
                 case 7: CycleFBNeoOption(m_core, "fbneo-allow-depth-32", {"disabled", "enabled"}, 1); break;
                 }
