@@ -86,7 +86,9 @@ static const ImWchar *GetGBAStationMenuGlyphRanges(ImGuiIO &io)
 
     ImFontGlyphRangesBuilder builder;
     builder.AddRanges(io.Fonts->GetGlyphRangesDefault());
-    builder.AddRanges(io.Fonts->GetGlyphRangesChineseSimplifiedCommon());
+    // Use the complete system Chinese range.  The common range leaves valid
+    // core option labels rendered as question marks in the overlay.
+    builder.AddRanges(io.Fonts->GetGlyphRangesChineseFull());
     builder.AddText(u8"返回游戏 保存状态 读取状态 金手指 画面设置 功能设置 重置游戏 退出游戏 核心设置 按键映射 "
                     u8"视频 音频 输入 性能 系统 语言 区域 纹理 过滤 开启 关闭 自动 取消 确认 保存 读取 "
                     u8"模拟器 菜单 游戏 暂停 快进 截图 预览 存档 槽位 选项 分类 默认 当前");

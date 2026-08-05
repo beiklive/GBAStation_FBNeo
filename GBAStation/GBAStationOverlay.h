@@ -97,6 +97,7 @@ private:
     void RenderHelpersBar(ImDrawList *dl, ImVec2 displaySize);
     void RenderStatusBar(ImDrawList *dl, ImVec2 displaySize);
     void RenderRAAlerts(ImDrawList *dl, ImVec2 displaySize, float deltaTime);
+    void ActivateTab(int tab);
 
     OverlayMenu m_currentMenu = OverlayMenu::None;
     std::string m_gameTitle;
@@ -105,6 +106,7 @@ private:
     float m_animTimer = 0.0f;
 
     int m_quickMenuSelection = 0;
+    bool m_sidebarFocused = true;
     int m_saveStateSlot = 0;
     bool m_isSaveMode = true;
     int m_settingsSelection = 0;

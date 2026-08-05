@@ -373,13 +373,43 @@ void GBAStationOverlay::Update(float deltaTime) {
 void GBAStationOverlay::Show() {
     if (m_currentMenu == OverlayMenu::None) {
         m_currentMenu = OverlayMenu::QuickMenu;
-        m_animTimer = 0.0f; m_quickMenuSelection = 0;
+        m_animTimer = 0.0f; m_quickMenuSelection = 0; m_sidebarFocused = true;
         LoadOverlayBindings();
         LoadConfig(); LoadGeneralConfig();
     }
 }
 
-void GBAStationOverlay::Hide() { m_currentMenu = OverlayMenu::None; }
+void GBAStationOverlay::Hide() {
+    m_currentMenu = OverlayMenu::None;
+    // Input releases while hidden are intentionally ignored. Clear the
+    // latched navigation state here so a completed save/load cannot leave
+    // the next menu session unresponsive.
+    m_upHeld = false;
+    m_downHeld = false;
+    m_leftHeld = false;
+    m_rightHeld = false;
+    m_confirmHeld = false;
+    m_backHeld = false;
+    m_lastInputTime = 0;
+}
+
+void GBAStationOverlay::ActivateTab(int tab) {
+    m_quickMenuSelection = std::clamp(tab, 0, 7);
+    m_settingsSelection = 0;
+    m_sidebarFocused = true;
+    if (m_quickMenuSelection == 1) {
+        m_isSaveMode = true;
+        m_currentMenu = OverlayMenu::SaveStates;
+    } else if (m_quickMenuSelection == 2) {
+        m_isSaveMode = false;
+        m_currentMenu = OverlayMenu::SaveStates;
+    } else if (m_quickMenuSelection == 4 || m_quickMenuSelection == 5) {
+        m_currentMenu = OverlayMenu::Settings;
+    } else {
+        m_currentMenu = OverlayMenu::QuickMenu;
+    }
+    m_animTimer = 0.4f;
+}
 
 void GBAStationOverlay::Render(ImVec2 displaySize, unsigned int gameTexture, float aspectRatio,
                          int frameWidth, int frameHeight, int fboWidth, int fboHeight) {
@@ -750,17 +780,16 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
     const float scale = ImGui::GetIO().FontGlobalScale;
     const float ease = 1.0f - std::pow(1.0f - std::min(m_animTimer / 0.4f, 1.0f), 3.0f);
     const float width = std::min(displaySize.x - 72.0f * scale, 1192.0f * scale);
-    const float height = std::min(displaySize.y - 104.0f * scale, 590.0f * scale);
+    const float height = displaySize.y - 56.0f * scale;
     const ImVec2 min((displaySize.x - width) * 0.5f, (displaySize.y - height) * 0.5f);
     const ImVec2 max(min.x + width, min.y + height);
     const float side = std::min(340.0f * scale, width * 0.34f);
     const float header = 62.0f * scale;
     const float tabHeight = (height - header - 22.0f * scale) / 8.0f;
     const char *tabs[] = {"返回游戏", "保存状态", "读取状态", "金手指", "画面设置", "功能设置", "重置游戏", "退出游戏"};
+    const char *icons[] = {u8"\ue5c4", u8"\ue161", u8"\ue042", u8"\ue87d", u8"\ue3b6", u8"\ue8b8", u8"\ue5d5", u8"\ue8ac"};
     const char *desc[] = {"继续当前游戏。", "创建即时存档。", "读取即时存档。", "管理游戏金手指。", "调整画面比例和缩放。", "调整可即时生效的核心选项。", "重新启动当前游戏。", "返回 GBAStation。"};
-    int active = m_quickMenuSelection;
-    if (m_currentMenu == OverlayMenu::SaveStates) active = m_isSaveMode ? 1 : 2;
-    else if (m_currentMenu == OverlayMenu::Settings) active = m_quickMenuSelection == 5 ? 5 : 4;
+    const int active = m_quickMenuSelection;
     const ImU32 bg = IM_COL32(9, 13, 23, (int)(158 * ease));
     const ImU32 panel = IM_COL32(19, 25, 40, (int)(178 * ease));
     const ImU32 line = IM_COL32(105, 126, 165, (int)(110 * ease));
@@ -790,14 +819,17 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
             }
         }
         ImVec2 size = font->CalcTextSizeA(labelSize, FLT_MAX, 0, tabs[i]);
-        dl->AddText(font, labelSize, ImVec2(rowMin.x + 22 * scale, rowMin.y + (rowMax.y - rowMin.y - size.y) * .5f), selected ? text : muted, tabs[i]);
+        const float textY = rowMin.y + (rowMax.y - rowMin.y - size.y) * .5f;
+        dl->AddText(font, labelSize * 1.08f, ImVec2(rowMin.x + 18 * scale, textY), selected ? text : muted, icons[i]);
+        dl->AddText(font, labelSize, ImVec2(rowMin.x + 52 * scale, textY), selected ? text : muted, tabs[i]);
     }
     const float contentX = min.x + side + 34 * scale;
     const float contentRight = max.x - 34 * scale;
-    const float rowY = min.y + header + 140 * scale;
+    const float rowY = min.y + header + 72 * scale;
     dl->AddText(font, titleSize, ImVec2(contentX, min.y + 18 * scale), text, tabs[active]);
     auto drawRow = [&](int i, bool selected, const std::string &label, const std::string &value) {
-        ImVec2 rowMin(contentX, rowY + i * 58 * scale), rowMax(contentRight, rowY + (i + 1) * 58 * scale - 5 * scale);
+        const float rowHeight = 52 * scale;
+        ImVec2 rowMin(contentX, rowY + i * rowHeight), rowMax(contentRight, rowY + (i + 1) * rowHeight - 4 * scale);
         if (selected) dl->AddRect(rowMin, rowMax, IM_COL32(126,175,255,(int)(255*ease)), 0, 0, 2*scale);
         dl->AddText(font, labelSize, ImVec2(rowMin.x + 18*scale, rowMin.y + 16*scale), selected ? text : muted, label.c_str());
         if (!value.empty()) { ImVec2 s = font->CalcTextSizeA(labelSize, FLT_MAX, 0, value.c_str()); dl->AddText(font, labelSize, ImVec2(rowMax.x - s.x - 18*scale, rowMin.y + 16*scale), text, value.c_str()); }
@@ -973,6 +1005,32 @@ bool GBAStationOverlay::HandleInput(SDL_GameController *controller) {
     if (axisY < -16000) up = true; if (axisY > 16000) down = true;
     if (axisX < -16000) left = true; if (axisX > 16000) right = true;
 
+    // The overlay deliberately uses physical Switch navigation here.  Gameplay
+    // remaps stay in the core; the sidebar switches pages immediately and
+    // Right is the only way to move into a page's setting list.
+    if (m_sidebarFocused) {
+        if (up && !m_upHeld && debounced) { m_upHeld = true; m_lastInputTime = now; ActivateTab((m_quickMenuSelection + 7) % 8); }
+        if (!up) m_upHeld = false;
+        if (down && !m_downHeld && debounced) { m_downHeld = true; m_lastInputTime = now; ActivateTab((m_quickMenuSelection + 1) % 8); }
+        if (!down) m_downHeld = false;
+        if (right && !m_rightHeld && debounced) {
+            m_rightHeld = true; m_lastInputTime = now;
+            if (m_currentMenu == OverlayMenu::SaveStates || m_currentMenu == OverlayMenu::Settings) m_sidebarFocused = false;
+        }
+        if (!right) m_rightHeld = false;
+        if (confirm && !m_confirmHeld && debounced) {
+            m_confirmHeld = true; m_lastInputTime = now;
+            if (m_quickMenuSelection == 0) Hide();
+            else if (m_quickMenuSelection == 6) { m_shouldReset = true; Hide(); }
+            else if (m_quickMenuSelection == 7) m_shouldExit = true;
+            else if (m_currentMenu == OverlayMenu::SaveStates || m_currentMenu == OverlayMenu::Settings) m_sidebarFocused = false;
+        }
+        if (!confirm) m_confirmHeld = false;
+        if (back && !m_backHeld && debounced) { m_backHeld = true; m_lastInputTime = now; Hide(); }
+        if (!back) m_backHeld = false;
+        return true;
+    }
+
     if (up && !m_upHeld && debounced) {
         m_upHeld = true; m_lastInputTime = now;
         if (m_currentMenu == OverlayMenu::QuickMenu) m_quickMenuSelection = (m_quickMenuSelection + 7) % 8;
@@ -987,6 +1045,13 @@ bool GBAStationOverlay::HandleInput(SDL_GameController *controller) {
         else if (m_currentMenu == OverlayMenu::Settings) m_settingsSelection = (m_settingsSelection + 1) % (m_quickMenuSelection == 5 ? 8 : 3);
     }
     if (!down) m_downHeld = false;
+
+    if (left && !m_leftHeld && debounced) {
+        m_leftHeld = true;
+        m_lastInputTime = now;
+        m_sidebarFocused = true;
+        return true;
+    }
 
     bool dirChanged = false; int dir = 0;
     if (left && !m_leftHeld && debounced) { m_leftHeld = true; dir = -1; dirChanged = true; m_lastInputTime = now; }
@@ -1041,7 +1106,7 @@ bool GBAStationOverlay::HandleInput(SDL_GameController *controller) {
         } else if (m_currentMenu == OverlayMenu::SaveStates) {
             if (m_core) {
                 std::string sp = GetStatePath(m_core, m_saveStateSlot);
-                if (m_isSaveMode) { m_core->SaveState(sp); m_currentMenu = OverlayMenu::QuickMenu; }
+                if (m_isSaveMode) { m_core->SaveState(sp); m_currentMenu = OverlayMenu::QuickMenu; m_sidebarFocused = true; }
                 else { m_core->LoadState(sp); Hide(); m_animTimer = 0.4f; return true; }
             } else m_currentMenu = OverlayMenu::QuickMenu;
         } else if (m_currentMenu == OverlayMenu::Settings) {
@@ -1075,7 +1140,7 @@ bool GBAStationOverlay::HandleInput(SDL_GameController *controller) {
     if (back && !m_backHeld && debounced) {
         m_backHeld = true; m_lastInputTime = now;
         if (m_currentMenu == OverlayMenu::QuickMenu) Hide();
-        else m_currentMenu = OverlayMenu::QuickMenu;
+        else m_sidebarFocused = true;
     }
     if (!back) m_backHeld = false;
     return true;
