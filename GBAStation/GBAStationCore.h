@@ -73,6 +73,7 @@ public:
     bool GetVariable(const char *key, const char **value);
     std::string GetCoreOption(const std::string &key, const std::string &fallback = "") const;
     void SetCoreOption(const std::string &key, const std::string &value);
+    void SaveConfigOption(const std::string &key, const std::string &value);
 
     /// @brief OSD notification accessors
     const std::string& GetOSDMessage() const { return m_osdMessage; }

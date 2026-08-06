@@ -2131,7 +2131,29 @@ void GBAStationCore::SetCoreOption(const std::string &key, const std::string &va
         return;
     m_configOptions[key] = value;
     m_variablesUpdated = true;
+    SaveConfigOption(key, value);
     GBAStation_debug_log("Runtime option %s=%s", key.c_str(), value.c_str());
+}
+
+void GBAStationCore::SaveConfigOption(const std::string &key, const std::string &value)
+{
+#ifdef __SWITCH__
+    const char *configPath = "sdmc:/GBAStation/config/cores/fbneo.jsonc";
+#else
+    const char *configPath = "GBAStation/config/cores/fbneo.jsonc";
+#endif
+    nlohmann::json config = nlohmann::json::object();
+    std::ifstream in(configPath);
+    if (in.good())
+    {
+        const nlohmann::json parsed = nlohmann::json::parse(in, nullptr, false, true);
+        if (!parsed.is_discarded() && parsed.is_object())
+            config = parsed;
+    }
+    config[key] = value;
+    std::ofstream out(configPath);
+    if (out.good())
+        out << config.dump(4);
 }
 
 bool GBAStationCore::GetVariable(const char *key, const char **value)

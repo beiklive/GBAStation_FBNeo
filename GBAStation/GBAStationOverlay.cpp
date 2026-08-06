@@ -842,7 +842,15 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
             const char *labels[] = {"跳帧模式", "固定跳帧", "CPU 速度", "低通滤波", "FM 插值", "采样率", "强制 60Hz", "32 位色深"};
             const char *keys[] = {"fbneo-frameskip-type", "fbneo-fixed-frameskip", "fbneo-cpu-speed-adjust", "fbneo-lowpass-filter", "fbneo-fm-interpolation", "fbneo-samplerate", "fbneo-force-60hz", "fbneo-allow-depth-32"};
             const int first = std::clamp(m_settingsSelection - 3, 0, 2);
-            for (int row = 0; row < 6; ++row) { const int option = first + row; drawRow(row, option == m_settingsSelection, labels[option], m_core ? m_core->GetCoreOption(keys[option], "默认") : "默认"); }
+            for (int row = 0; row < 6; ++row) {
+                const int option = first + row;
+                std::string value = m_core ? m_core->GetCoreOption(keys[option], "默认") : "默认";
+                // samplerate / allow-depth-32 are consumed at game load; the
+                // core can't re-apply them live (unlike the frame/pacing ones).
+                if (option == 5 || option == 7)
+                    value += "（重启后生效）";
+                drawRow(row, option == m_settingsSelection, labels[option], value);
+            }
         } else {
             const std::string mode = m_displayMode == GambatteDisplayMode::Integer ? "整数缩放" : "比例显示";
             std::string size = m_displayMode == GambatteDisplayMode::Integer ? "自动" : "原始比例";
