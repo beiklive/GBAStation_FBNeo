@@ -94,6 +94,7 @@ private:
     void RenderSettingsMenu(ImDrawList *dl, ImVec2 displaySize);
     void RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize);
     void EnsureFocusTexture();
+    void DrawFocusBorder(ImVec2 min, ImVec2 max, float thickness);
     void RenderHelpersBar(ImDrawList *dl, ImVec2 displaySize);
     void RenderStatusBar(ImDrawList *dl, ImVec2 displaySize);
     void RenderRAAlerts(ImDrawList *dl, ImVec2 displaySize, float deltaTime);

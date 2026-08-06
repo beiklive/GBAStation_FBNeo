@@ -6,7 +6,9 @@
 
 #include <SDL.h>
 #include <SDL_mixer.h>
+#include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <vector>
@@ -18,6 +20,7 @@ extern "C" {
 
 }
 #endif
+#include "GBAStationConfig.h"
 #include "GBAStationLogger.h"
 
 /// @brief Thread-safe lock-free SPSC ring buffer for audio samples
@@ -137,6 +140,9 @@ public:
         if (m_initialized)
             return true;
 
+        s_instance = this;
+        SynthesizeUiSounds();
+
         if (GBAStationConfig::USE_SDLQUEUEAUDIO)
         {
             if (deviceId == 0)
@@ -226,6 +232,9 @@ public:
         if (m_fastForward)
             return; // Drop audio completely during fast forward to prevent desync/memory bleed
 
+        int16_t samples[2] = {left, right};
+        MixUi(samples, 2);
+
         // Non-blocking: never stall the emulation thread on audio. If the buffer
         // is full (latency cap reached) drop the sample — vsync paces the frame,
         // not audio back-pressure.
@@ -234,7 +243,6 @@ public:
             if (SDL_GetQueuedAudioSize(m_deviceId) >= SDL_QUEUE_MAX_BYTES)
                 return;
 
-            int16_t samples[2] = {left, right};
             SDL_QueueAudio(m_deviceId, samples, sizeof(samples));
         }
         else
@@ -242,7 +250,6 @@ public:
             if (m_buffer.Available() >= MAX_BUFFERED_SAMPLES)
                 return;
 
-            int16_t samples[2] = {left, right};
             m_buffer.Write(samples, 2);
         }
     }
@@ -257,6 +264,13 @@ public:
             return frames;
 
         size_t samplesNeeded = frames * CHANNELS;
+
+        if (m_uiActive.load(std::memory_order_relaxed))
+        {
+            m_mixScratch.assign(data, data + samplesNeeded);
+            MixUi(m_mixScratch.data(), samplesNeeded);
+            data = m_mixScratch.data();
+        }
 
         // Non-blocking: drop the batch if the buffer is at the latency cap rather
         // than stalling the emulation thread. The ring buffer's Write() also
@@ -304,7 +318,84 @@ public:
     void SetFastForward(bool ff) { m_fastForward = ff; }
     bool IsFastForwarding() const { return m_fastForward; }
 
+    //--------------------------------------------------------------------------
+    // UI sound effects (synthesized beeps, like the 3DS frontend).
+    //--------------------------------------------------------------------------
+    enum class UiSound
+    {
+        Focus,
+        Confirm,
+        Cancel,
+    };
+
+    void PlayUiSound(UiSound sound)
+    {
+        const int index = static_cast<int>(sound);
+        if (index < 0 || index > 2 || m_uiPCM[index].empty())
+            return;
+        m_uiCursor.store(0, std::memory_order_relaxed);
+        m_uiActive.store(true, std::memory_order_relaxed);
+        m_uiIndex.store(index, std::memory_order_relaxed);
+    }
+
+    static void PlayUiSoundGlobal(UiSound sound)
+    {
+        if (s_instance)
+            s_instance->PlayUiSound(sound);
+    }
+
 private:
+    /// Mix the active UI beep into an interleaved S16 block in place.
+    void MixUi(int16_t *dst, size_t numSamples)
+    {
+        if (!m_uiActive.load(std::memory_order_relaxed))
+            return;
+        const int index = m_uiIndex.load(std::memory_order_relaxed);
+        if (index < 0 || index > 2 || m_uiPCM[index].empty())
+            return;
+        size_t cursor = m_uiCursor.load(std::memory_order_relaxed);
+        const size_t total = m_uiPCM[index].size();
+        for (size_t i = 0; i < numSamples; ++i)
+        {
+            if (cursor >= total)
+            {
+                m_uiActive.store(false, std::memory_order_relaxed);
+                break;
+            }
+            int s = static_cast<int>(dst[i]) + static_cast<int>(m_uiPCM[index][cursor++]);
+            if (s > 32767) s = 32767;
+            else if (s < -32768) s = -32768;
+            dst[i] = static_cast<int16_t>(s);
+        }
+        m_uiCursor.store(cursor, std::memory_order_relaxed);
+    }
+
+    /// Synthesize short UI ticks (focus/confirm/cancel) at SAMPLE_RATE.
+    void SynthesizeUiSounds()
+    {
+        constexpr float kFreqs[3] = {1320.0f, 1760.0f, 880.0f};
+        constexpr float kDurations[3] = {0.035f, 0.055f, 0.045f};
+        constexpr float kVolumes[3] = {0.22f, 0.26f, 0.22f};
+        for (int s = 0; s < 3; ++s)
+        {
+            m_uiPCM[s].clear();
+            const int count = static_cast<int>(kDurations[s] * static_cast<float>(SAMPLE_RATE));
+            m_uiPCM[s].reserve(static_cast<size_t>(count) * 2);
+            for (int i = 0; i < count; ++i)
+            {
+                const float t = static_cast<float>(i) / static_cast<float>(SAMPLE_RATE);
+                const float env = std::exp(-t * 55.0f);
+                const float v = std::sin(6.2831853f * kFreqs[s] * t) * kVolumes[s] * env;
+                const int16_t sample = static_cast<int16_t>(
+                    std::clamp(static_cast<int>(v * 32767.0f), -32768, 32767));
+                m_uiPCM[s].push_back(sample);
+                m_uiPCM[s].push_back(sample);
+            }
+        }
+        m_uiCursor.store(0, std::memory_order_relaxed);
+        m_uiActive.store(false, std::memory_order_relaxed);
+    }
+
     /// @brief SDL_mixer pull callback — reads from ring buffer with optional resampling
     static void AudioCallback(void *userdata, uint8_t *stream, int len)
     {
@@ -387,6 +478,16 @@ private:
     bool m_fastForward;
     int m_coreSampleRate;
     std::atomic<uint32_t> m_underrunCount{0};
+
+    // Synthesized UI beeps (focus/confirm/cancel).
+    std::vector<int16_t> m_uiPCM[3];
+    std::vector<int16_t> m_mixScratch;
+    std::atomic<size_t> m_uiCursor{0};
+    std::atomic<bool> m_uiActive{false};
+    std::atomic<int> m_uiIndex{0};
+
+    // Set in Init() so the overlay can reach the live instance for UI sounds.
+    inline static GBAStationAudio *s_instance = nullptr;
 
 #ifdef __SWITCH__
     Mutex m_audioMutex;
