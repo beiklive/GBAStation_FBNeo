@@ -899,7 +899,10 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
         }
         char iconBuf[8];
         EncodeUtf8(iconBuf, icons[i]);
-        const float textY = y + itemH * 0.5f + fontSize * 0.12f * scale;
+        // ImGui AddText's pos.y is the glyph top; the 3DS renderer passes a
+        // baseline (y + 38 for a 58px row).  Compensate so the text is
+        // vertically centered like the icon beside it.
+        const float textY = y + itemH * 0.66f - 21.0f * scale * 0.86f;
         dl->AddText(font, 25.0f * scale, ImVec2(sidebarX + 34.0f * scale, y + itemH * 0.5f - 12.5f * scale),
                     selected ? white : muted, iconBuf);
         dl->AddText(font, 21.0f * scale, ImVec2(sidebarX + 64.0f * scale, textY),
@@ -925,7 +928,6 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
     dl->AddText(font, 27.0f * scale, ImVec2(contentX, 150.0f * scale), white, tabs[active]);
     dl->AddRectFilled(ImVec2(contentX, 190.0f * scale),
                       ImVec2(contentX + contentW, 191.0f * scale), IM_COL32(0, 122, 204, (int)(71.0f * ease)));
-
     auto drawRow = [&](int row, bool focused, const char *iconUtf8, const std::string &label,
                        const std::string &value, bool selector) {
         const float y = viewTop + row * (rowH + rowGap);
@@ -939,26 +941,27 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
         } else {
             dl->AddRect(rowMin, rowMax, rowBorder, 0.0f, 0, 1.0f * scale);
         }
-        dl->AddText(font, 20.0f * scale, ImVec2(contentX + 24.0f * scale, y + rowH * 0.5f - 10.0f * scale),
+        const float centerY = y + rowH * 0.5f;
+        // AddText's y is the glyph top: compensate for the 3DS baseline (y+32).
+        dl->AddText(font, 20.0f * scale, ImVec2(contentX + 24.0f * scale, y + rowH * 0.66f - 20.0f * scale * 0.86f),
                     selector ? cyan : (focused ? white : muted), iconUtf8);
-        dl->AddText(font, 20.0f * scale, ImVec2(contentX + 46.0f * scale, y + rowH * 0.5f + 12.0f * scale),
+        dl->AddText(font, 20.0f * scale, ImVec2(contentX + 46.0f * scale, y + rowH * 0.66f - 20.0f * scale * 0.86f),
                     focused ? white : muted, label.c_str());
         if (selector) {
             char iconL[8], iconR[8];
             EncodeUtf8(iconL, 0xE0E4);
             EncodeUtf8(iconR, 0xE0E5);
-            const float centerY = y + rowH * 0.5f;
-            dl->AddText(font, 26.0f * scale, ImVec2(contentX + contentW - 194.0f * scale, centerY - 13.0f * scale),
+            dl->AddText(font, 26.0f * scale, ImVec2(contentX + contentW - 194.0f * scale, y + rowH * 0.66f - 26.0f * scale * 0.86f),
                         cyan, iconL);
             const float valueW = font->CalcTextSizeA(18.0f * scale, FLT_MAX, 0.0f, value.c_str()).x;
             dl->AddText(font, 18.0f * scale,
-                        ImVec2(contentX + contentW - 110.0f * scale - valueW * 0.5f, centerY + 7.0f * scale),
+                        ImVec2(contentX + contentW - 110.0f * scale - valueW * 0.5f, y + rowH * 0.66f - 18.0f * scale * 0.86f),
                         cyan, value.c_str());
-            dl->AddText(font, 26.0f * scale, ImVec2(contentX + contentW - 24.0f * scale, centerY - 13.0f * scale),
+            dl->AddText(font, 26.0f * scale, ImVec2(contentX + contentW - 24.0f * scale, y + rowH * 0.66f - 26.0f * scale * 0.86f),
                         cyan, iconR);
         } else {
             const float valueW = font->CalcTextSizeA(18.0f * scale, FLT_MAX, 0.0f, value.c_str()).x;
-            dl->AddText(font, 18.0f * scale, ImVec2(contentX + contentW - valueW - 18.0f * scale, y + rowH * 0.5f + 7.0f * scale),
+            dl->AddText(font, 18.0f * scale, ImVec2(contentX + contentW - valueW - 18.0f * scale, y + rowH * 0.66f - 18.0f * scale * 0.86f),
                         cyan, value.c_str());
         }
     };
@@ -1130,11 +1133,12 @@ void GBAStationOverlay::RenderHelpersBar(ImDrawList *dl, ImVec2 displaySize) {
     char iconB[8], iconA[8];
     EncodeUtf8(iconB, 0xE0E1);
     EncodeUtf8(iconA, 0xE0E0);
+    // 3DS footer baselines: icons at 636, labels at 648.
     const float baseY = displaySize.y - 42.0f * scale;
-    dl->AddText(font, 27.0f * scale, ImVec2(1020.0f * scale, baseY - 13.5f * scale), hintColor, iconB);
-    dl->AddText(font, 19.0f * scale, ImVec2(1042.0f * scale, baseY + 9.0f * scale), hintColor, bLabel);
-    dl->AddText(font, 27.0f * scale, ImVec2(1152.0f * scale, baseY - 13.5f * scale), hintColor, iconA);
-    dl->AddText(font, 19.0f * scale, ImVec2(1174.0f * scale, baseY + 9.0f * scale), hintColor, aLabel);
+    dl->AddText(font, 27.0f * scale, ImVec2(1020.0f * scale, baseY - 27.0f * scale * 0.86f), hintColor, iconB);
+    dl->AddText(font, 19.0f * scale, ImVec2(1042.0f * scale, baseY - 19.0f * scale * 0.86f), hintColor, bLabel);
+    dl->AddText(font, 27.0f * scale, ImVec2(1152.0f * scale, baseY - 27.0f * scale * 0.86f), hintColor, iconA);
+    dl->AddText(font, 19.0f * scale, ImVec2(1174.0f * scale, baseY - 19.0f * scale * 0.86f), hintColor, aLabel);
 }
 
 bool GBAStationOverlay::HandleInput(SDL_GameController *controller) {
@@ -1156,8 +1160,12 @@ bool GBAStationOverlay::HandleInput(SDL_GameController *controller) {
     // gameplay remaps in config.cfg. SDL B is Switch A; SDL A is Switch B.
     bool up = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_UP);
     bool down = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_DOWN);
-    bool left = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_LEFT);
-    bool right = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_RIGHT);
+    // The 3DS menu treats the physical L / R shoulders as Left / Right so the
+    // LR value selectors can be adjusted without the d-pad.
+    bool left = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_LEFT) ||
+                SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_LEFTSHOULDER);
+    bool right = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_RIGHT) ||
+                 SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER);
     bool confirm = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_B);
     bool back = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_A);
     Sint16 axisY = SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_LEFTY);
