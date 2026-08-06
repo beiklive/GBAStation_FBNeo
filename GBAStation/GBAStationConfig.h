@@ -16,8 +16,11 @@ namespace GBAStationConfig {
     constexpr int WINDOW_HEIGHT = 720;
     constexpr float FONT_SIZE = 32.0f;
 
-    /// @brief Use callback/ring-buffer path (supports resampling)
-    constexpr bool USE_SDLQUEUEAUDIO = false;
+    /// @brief Use SDL_QueueAudio push mode.  The menu pauses the core, so the
+    /// callback/ring-buffer path would never mix UI sounds while the menu is
+    /// open; queue mode lets PlayUiSound push the 3DS WAV clips straight into
+    /// the device queue where they play immediately.
+    constexpr bool USE_SDLQUEUEAUDIO = true;
 }
 
 /// @brief UI action identifiers for the helpers bar

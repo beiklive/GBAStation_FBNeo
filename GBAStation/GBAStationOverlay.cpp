@@ -902,7 +902,7 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
         // ImGui AddText's pos.y is the glyph top; the 3DS renderer passes a
         // baseline (y + 38 for a 58px row).  Compensate so the text is
         // vertically centered like the icon beside it.
-        const float textY = y + itemH * 0.66f - 21.0f * scale * 0.86f;
+        const float textY = y + itemH * 0.5f - 21.0f * scale * 0.5f;
         dl->AddText(font, 25.0f * scale, ImVec2(sidebarX + 34.0f * scale, y + itemH * 0.5f - 12.5f * scale),
                     selected ? white : muted, iconBuf);
         dl->AddText(font, 21.0f * scale, ImVec2(sidebarX + 64.0f * scale, textY),
@@ -925,9 +925,9 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
     const float rowH = 48.0f * scale;
     const float rowGap = 4.0f * scale;
 
-    dl->AddText(font, 27.0f * scale, ImVec2(contentX, 150.0f * scale), white, tabs[active]);
-    dl->AddRectFilled(ImVec2(contentX, 190.0f * scale),
-                      ImVec2(contentX + contentW, 191.0f * scale), IM_COL32(0, 122, 204, (int)(71.0f * ease)));
+    dl->AddText(font, 27.0f * scale, ImVec2(contentX, 116.0f * scale), white, tabs[active]);
+    dl->AddRectFilled(ImVec2(contentX, 162.0f * scale),
+                      ImVec2(contentX + contentW, 163.0f * scale), IM_COL32(0, 122, 204, (int)(71.0f * ease)));
     auto drawRow = [&](int row, bool focused, const char *iconUtf8, const std::string &label,
                        const std::string &value, bool selector) {
         const float y = viewTop + row * (rowH + rowGap);
@@ -943,42 +943,77 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
         }
         const float centerY = y + rowH * 0.5f;
         // AddText's y is the glyph top: compensate for the 3DS baseline (y+32).
-        dl->AddText(font, 20.0f * scale, ImVec2(contentX + 24.0f * scale, y + rowH * 0.66f - 20.0f * scale * 0.86f),
+        dl->AddText(font, 20.0f * scale, ImVec2(contentX + 24.0f * scale, y + rowH * 0.5f - 20.0f * scale * 0.5f),
                     selector ? cyan : (focused ? white : muted), iconUtf8);
-        dl->AddText(font, 20.0f * scale, ImVec2(contentX + 46.0f * scale, y + rowH * 0.66f - 20.0f * scale * 0.86f),
+        dl->AddText(font, 20.0f * scale, ImVec2(contentX + 46.0f * scale, y + rowH * 0.5f - 20.0f * scale * 0.5f),
                     focused ? white : muted, label.c_str());
         if (selector) {
             char iconL[8], iconR[8];
             EncodeUtf8(iconL, 0xE0E4);
             EncodeUtf8(iconR, 0xE0E5);
-            dl->AddText(font, 26.0f * scale, ImVec2(contentX + contentW - 194.0f * scale, y + rowH * 0.66f - 26.0f * scale * 0.86f),
+            dl->AddText(font, 26.0f * scale, ImVec2(contentX + contentW - 194.0f * scale, y + rowH * 0.5f - 26.0f * scale * 0.5f),
                         cyan, iconL);
             const float valueW = font->CalcTextSizeA(18.0f * scale, FLT_MAX, 0.0f, value.c_str()).x;
             dl->AddText(font, 18.0f * scale,
-                        ImVec2(contentX + contentW - 110.0f * scale - valueW * 0.5f, y + rowH * 0.66f - 18.0f * scale * 0.86f),
+                        ImVec2(contentX + contentW - 110.0f * scale - valueW * 0.5f, y + rowH * 0.5f - 18.0f * scale * 0.5f),
                         cyan, value.c_str());
-            dl->AddText(font, 26.0f * scale, ImVec2(contentX + contentW - 24.0f * scale, y + rowH * 0.66f - 26.0f * scale * 0.86f),
+            dl->AddText(font, 26.0f * scale, ImVec2(contentX + contentW - 24.0f * scale, y + rowH * 0.5f - 26.0f * scale * 0.5f),
                         cyan, iconR);
         } else {
             const float valueW = font->CalcTextSizeA(18.0f * scale, FLT_MAX, 0.0f, value.c_str()).x;
-            dl->AddText(font, 18.0f * scale, ImVec2(contentX + contentW - valueW - 18.0f * scale, y + rowH * 0.66f - 18.0f * scale * 0.86f),
+            dl->AddText(font, 18.0f * scale, ImVec2(contentX + contentW - valueW - 18.0f * scale, y + rowH * 0.5f - 18.0f * scale * 0.5f),
                         cyan, value.c_str());
         }
     };
 
     const bool inContent = !m_sidebarFocused;
     if (m_currentMenu == OverlayMenu::SaveStates) {
+        // Two-column scrolling grid of save slots (like the launcher's
+        // GameMenuView): icon + slot name + status per cell, focused cell
+        // kept centred inside [viewTop, viewBottom].
         const int total = 10;
-        const int visible = std::min(9, total);
-        const int firstSlot = std::clamp(m_saveStateSlot - visible / 2, 0, std::max(0, total - visible));
-        for (int row = 0; row < visible; ++row) {
-            const int slot = firstSlot + row;
-            struct stat st{};
-            const bool exists = m_core && stat(GetStatePath(m_core, slot).c_str(), &st) == 0;
-            char icon[8];
-            EncodeUtf8(icon, 0xE161);
-            drawRow(row, inContent && slot == m_saveStateSlot, icon,
-                    "存档槽 " + std::to_string(slot + 1), exists ? "已有存档" : "空", false);
+        constexpr int kColumns = 2;
+        constexpr int kRows = 5;
+        const float cellW = (contentW - 14.0f * scale) * 0.5f;
+        const float cellH = 88.0f * scale;
+        const float cellGapX = 14.0f * scale;
+        const float cellGapY = 8.0f * scale;
+        const int gridH = (total + kColumns - 1) / kColumns;
+        const int selectedRow = m_saveStateSlot / kColumns;
+        const int firstRow = std::clamp(selectedRow - kRows / 2, 0, std::max(0, gridH - kRows));
+        for (int r = 0; r < kRows; ++r) {
+            const int row = firstRow + r;
+            for (int c = 0; c < kColumns; ++c) {
+                const int slot = row * kColumns + c;
+                if (slot >= total) {
+                    continue;
+                }
+                const float x = contentX + c * (cellW + cellGapX);
+                const float y = viewTop + r * (cellH + cellGapY);
+                const bool focused = inContent && slot == m_saveStateSlot;
+                struct stat st{};
+                const bool exists = m_core && stat(GetStatePath(m_core, slot).c_str(), &st) == 0;
+                const ImVec2 cellMin(x, y), cellMax(x + cellW, y + cellH);
+                dl->AddRectFilled(cellMin, cellMax, focused ? focusBg : rowBg, 6.0f * scale);
+                if (focused) {
+                    DrawFocusBorder(cellMin, cellMax, 3.0f * scale);
+                } else {
+                    dl->AddRect(cellMin, cellMax, rowBorder, 6.0f * scale, 0, 1.0f * scale);
+                }
+                const float iconX = x + 14.0f * scale;
+                const float iconCenterY = y + cellH * 0.5f;
+                char icon[8];
+                EncodeUtf8(icon, exists ? 0xE161 : 0xE2C7);
+                dl->AddText(font, 34.0f * scale, ImVec2(iconX, iconCenterY - 34.0f * scale * 0.5f),
+                            exists ? (focused ? white : cyan) : muted, icon);
+                const float textX = iconX + 44.0f * scale;
+                const std::string title = "存档槽 " + std::to_string(slot + 1);
+                dl->AddText(font, 20.0f * scale, ImVec2(textX, y + 22.0f * scale),
+                            focused ? white : muted, title.c_str());
+                const char *status = exists ? "已有存档" : "空存档槽";
+                dl->AddText(font, 16.0f * scale, ImVec2(textX, y + cellH - 36.0f * scale),
+                            exists ? cyan : muted, status);
+            }
         }
     } else if (m_currentMenu == OverlayMenu::Settings) {
         if (active == 5) {
@@ -1135,10 +1170,10 @@ void GBAStationOverlay::RenderHelpersBar(ImDrawList *dl, ImVec2 displaySize) {
     EncodeUtf8(iconA, 0xE0E0);
     // 3DS footer baselines: icons at 636, labels at 648.
     const float baseY = displaySize.y - 42.0f * scale;
-    dl->AddText(font, 27.0f * scale, ImVec2(1020.0f * scale, baseY - 27.0f * scale * 0.86f), hintColor, iconB);
-    dl->AddText(font, 19.0f * scale, ImVec2(1042.0f * scale, baseY - 19.0f * scale * 0.86f), hintColor, bLabel);
-    dl->AddText(font, 27.0f * scale, ImVec2(1152.0f * scale, baseY - 27.0f * scale * 0.86f), hintColor, iconA);
-    dl->AddText(font, 19.0f * scale, ImVec2(1174.0f * scale, baseY - 19.0f * scale * 0.86f), hintColor, aLabel);
+    dl->AddText(font, 27.0f * scale, ImVec2(1020.0f * scale, baseY - 27.0f * scale * 0.5f), hintColor, iconB);
+    dl->AddText(font, 19.0f * scale, ImVec2(1042.0f * scale, baseY - 19.0f * scale * 0.5f), hintColor, bLabel);
+    dl->AddText(font, 27.0f * scale, ImVec2(1152.0f * scale, baseY - 27.0f * scale * 0.5f), hintColor, iconA);
+    dl->AddText(font, 19.0f * scale, ImVec2(1174.0f * scale, baseY - 19.0f * scale * 0.5f), hintColor, aLabel);
 }
 
 bool GBAStationOverlay::HandleInput(SDL_GameController *controller) {
@@ -1208,7 +1243,7 @@ bool GBAStationOverlay::HandleInput(SDL_GameController *controller) {
     if (up && !m_upHeld && debounced) {
         m_upHeld = true; m_lastInputTime = now;
         if (m_currentMenu == OverlayMenu::QuickMenu) m_quickMenuSelection = (m_quickMenuSelection + 7) % 8;
-        else if (m_currentMenu == OverlayMenu::SaveStates) m_saveStateSlot = (m_saveStateSlot + 9) % 10;
+        else if (m_currentMenu == OverlayMenu::SaveStates) m_saveStateSlot = (m_saveStateSlot + 8) % 10; // previous row
         else if (m_currentMenu == OverlayMenu::Settings) m_settingsSelection = (m_settingsSelection + (m_quickMenuSelection == 5 ? 7 : 2)) % (m_quickMenuSelection == 5 ? 8 : 3);
         GBAStationAudio::PlayUiSoundGlobal(GBAStationAudio::UiSound::Focus);
     }
@@ -1216,24 +1251,22 @@ bool GBAStationOverlay::HandleInput(SDL_GameController *controller) {
     if (down && !m_downHeld && debounced) {
         m_downHeld = true; m_lastInputTime = now;
         if (m_currentMenu == OverlayMenu::QuickMenu) m_quickMenuSelection = (m_quickMenuSelection + 1) % 8;
-        else if (m_currentMenu == OverlayMenu::SaveStates) m_saveStateSlot = (m_saveStateSlot + 1) % 10;
+        else if (m_currentMenu == OverlayMenu::SaveStates) m_saveStateSlot = (m_saveStateSlot + 2) % 10; // next row
         else if (m_currentMenu == OverlayMenu::Settings) m_settingsSelection = (m_settingsSelection + 1) % (m_quickMenuSelection == 5 ? 8 : 3);
         GBAStationAudio::PlayUiSoundGlobal(GBAStationAudio::UiSound::Focus);
     }
     if (!down) m_downHeld = false;
-
-    if (left && !m_leftHeld && debounced) {
-        m_leftHeld = true;
-        m_lastInputTime = now;
-        m_sidebarFocused = true;
-        return true;
-    }
 
     bool dirChanged = false; int dir = 0;
     if (left && !m_leftHeld && debounced) { m_leftHeld = true; dir = -1; dirChanged = true; m_lastInputTime = now; }
     if (!left) m_leftHeld = false;
     if (right && !m_rightHeld && debounced) { m_rightHeld = true; dir = 1; dirChanged = true; m_lastInputTime = now; }
     if (!right) m_rightHeld = false;
+
+    if (dirChanged && m_currentMenu == OverlayMenu::SaveStates) {
+        m_saveStateSlot = (m_saveStateSlot + dir + 10) % 10; // move between columns
+        GBAStationAudio::PlayUiSoundGlobal(GBAStationAudio::UiSound::Focus);
+    }
 
     if (dirChanged && m_currentMenu == OverlayMenu::Settings) {
         GBAStationAudio::PlayUiSoundGlobal(GBAStationAudio::UiSound::Focus);
