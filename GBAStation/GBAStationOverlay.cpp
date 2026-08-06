@@ -9,6 +9,7 @@
 #include "GBAStationTranslationManager.h"
 #include <algorithm>
 #include <cmath>
+#include <ctime>
 #include <fstream>
 #include "GBAStationUtils.h"
 #include <json.hpp>
@@ -809,7 +810,7 @@ void GBAStationOverlay::EnsureFocusTexture() {
 void GBAStationOverlay::DrawFocusBorder(ImVec2 min, ImVec2 max, float thickness) {
     ImDrawList *fg = ImGui::GetForegroundDrawList();
     const float x = min.x, y = min.y, w = max.x - min.x, h = max.y - min.y;
-    const float rounding = 8.0f * ImGui::GetIO().FontGlobalScale;
+    const float rounding = 0.0f;
     if (m_focusTexture)
     {
         // Animated flowing gradient: advance a UV window around the border so
@@ -981,7 +982,7 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
                             cyan, value.c_str());
             } else if (focused) {
                 // Focus-scroll: slide the text through the fixed window.
-                const float scroll = std::fmod((float)(SDL_GetTicks64() % 4000) / 1000.0f, 1.0f);
+                const float scroll = std::fmod((float)(SDL_GetTicks64() % 8000) / 1000.0f, 1.0f);
                 const float travel = valueW + valueMaxW;
                 const float offset = (valueW + valueMaxW) * 0.5f - scroll * travel;
                 const ImVec2 clipMin(valueCenterX - valueMaxW * 0.5f, y);
@@ -995,10 +996,10 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
                 char buf[64];
                 std::string clipped = value;
                 while (!clipped.empty() &&
-                       font->CalcTextSizeA(valueSize, FLT_MAX, 0.0f, (clipped + "…").c_str()).x > valueMaxW) {
+                       font->CalcTextSizeA(valueSize, FLT_MAX, 0.0f, (clipped + "...").c_str()).x > valueMaxW) {
                     clipped.pop_back();
                 }
-                clipped += "…";
+                clipped += "...";
                 const float cw = font->CalcTextSizeA(valueSize, FLT_MAX, 0.0f, clipped.c_str()).x;
                 dl->AddText(font, valueSize, ImVec2(valueCenterX - cw * 0.5f, y + rowH * 0.5f - valueSize * 0.43f),
                             cyan, clipped.c_str());
@@ -1014,9 +1015,9 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
 
     const bool inContent = !m_sidebarFocused;
     if (m_currentMenu == OverlayMenu::SaveStates) {
-        // Two-column scrolling grid of save slots (like the launcher's
-        // GameMenuView): icon + slot name + status per cell, focused cell
-        // kept centred inside [viewTop, viewBottom].
+        // Two-column scrolling grid of save slots: snapshot thumbnail on the
+        // left, slot name + save time on the right.  The focused cell is kept
+        // centred inside [viewTop, viewBottom].
         const int total = 10;
         constexpr int kColumns = 2;
         const float cellW = (contentW - 14.0f * scale) * 0.5f;
@@ -1024,11 +1025,10 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
         const float cellGapX = 14.0f * scale;
         const float cellGapY = 10.0f * scale;
         const int gridH = (total + kColumns - 1) / kColumns;
-        // Viewport is [viewTop, viewBottom]; render one row past the visible
-        // window so the selection can scroll (focus stays centred).
+        // Visible rows fit the viewport; the focused row scrolls to centre.
         const float viewportH = viewBottom - viewTop;
         const int visibleRows = std::max(1, (int)(viewportH / (cellH + cellGapY)));
-        const int kRows = std::min(gridH, visibleRows + 1);
+        const int kRows = std::min(gridH, visibleRows);
         const int selectedRow = m_saveStateSlot / kColumns;
         const int firstRow = std::clamp(selectedRow - kRows / 2, 0, std::max(0, gridH - kRows));
         for (int r = 0; r < kRows; ++r) {
@@ -1053,10 +1053,9 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
                 } else {
                     dl->AddRect(cellMin, cellMax, rowBorder, 8.0f * scale, 0, 1.0f * scale);
                 }
-                // Snapshot placeholder on the right half (screenshots land
-                // here later, mirroring the launcher's save-state items).
-                const float snapX = x + cellW * 0.55f;
-                const float snapW = cellW * 0.45f - 10.0f * scale;
+                // Snapshot thumbnail on the left (screenshots land here later).
+                const float snapX = x + 8.0f * scale;
+                const float snapW = cellW * 0.40f - 8.0f * scale;
                 const float snapY = y + 8.0f * scale;
                 const float snapH = cellH - 16.0f * scale;
                 dl->AddRectFilled(ImVec2(snapX, snapY), ImVec2(snapX + snapW, snapY + snapH),
@@ -1070,20 +1069,26 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
                             ImVec2(snapX + snapW * 0.5f - snapIconSize * 0.5f,
                                    snapY + snapH * 0.5f - snapIconSize * 0.43f),
                             IM_COL32(160, 200, 230, (int)(110.0f * ease)), snapIcon);
-                // Left half: icon + title + status.
-                const float iconX = x + 14.0f * scale;
-                const float iconCenterY = y + cellH * 0.5f;
-                char icon[8];
-                EncodeUtf8(icon, 0xE161);
-                dl->AddText(font, 34.0f * scale, ImVec2(iconX, iconCenterY - 34.0f * scale * 0.43f),
-                            exists ? (focused ? white : cyan) : muted, icon);
-                const float textX = iconX + 44.0f * scale;
+                // Right side: slot name + save time.
+                const float textX = snapX + snapW + 12.0f * scale;
                 const std::string title = "存档槽 " + std::to_string(slot + 1);
-                dl->AddText(font, 20.0f * scale, ImVec2(textX, y + 24.0f * scale),
+                dl->AddText(font, 20.0f * scale, ImVec2(textX, y + 26.0f * scale),
                             focused ? white : muted, title.c_str());
-                const char *status = exists ? "已有存档" : "空存档槽";
-                dl->AddText(font, 16.0f * scale, ImVec2(textX, y + cellH - 40.0f * scale),
-                            exists ? cyan : muted, status);
+                if (exists) {
+                    char timeBuf[32]{};
+                    std::tm tm{};
+#if defined(_WIN32)
+                    localtime_s(&tm, &st.st_mtime);
+#else
+                    localtime_r(&st.st_mtime, &tm);
+#endif
+                    std::strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M", &tm);
+                    dl->AddText(font, 16.0f * scale, ImVec2(textX, y + cellH - 42.0f * scale),
+                                cyan, timeBuf);
+                } else {
+                    dl->AddText(font, 16.0f * scale, ImVec2(textX, y + cellH - 42.0f * scale),
+                                muted, "空存档槽");
+                }
             }
         }
         // Scroll position hint above the footer (右下角提示文字上方).
@@ -1104,6 +1109,17 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
             for (int row = 0; row < visible; ++row) {
                 const int option = first + row;
                 std::string value = m_core ? m_core->GetCoreOption(keys[option], "默认") : "默认";
+                // The core has no defaults table; an unset option reports
+                // "默认".  Surface the first real option instead so the menu
+                // never shows a non-selectable placeholder value.
+                if (value == "默认") {
+                    static const char *const kDefaults[8] = {
+                        "disabled", "0", "100%", "disabled", "disabled", "44100", "disabled", "disabled",
+                    };
+                    value = kDefaults[option];
+                    if (m_core)
+                        m_core->SetCoreOption(keys[option], value);
+                }
                 // samplerate / allow-depth-32 are consumed at game load; the
                 // core can't re-apply them live (unlike the frame/pacing ones).
                 if (option == 5 || option == 7)
@@ -1123,8 +1139,14 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
             EncodeUtf8(icon, 0xE3F4);
             drawRow(1, inContent && m_settingsSelection == 1, icon, "画面比例", size, true);
             EncodeUtf8(icon, 0xE3B6);
-            drawRow(2, inContent && m_settingsSelection == 2, icon, "着色器", "切换", false);
+            const char *shaderNames[] = {"无", "xBRZ", "Eagle", "CRT Easy Mode"};
+            drawRow(2, inContent && m_settingsSelection == 2, icon, "着色器",
+                    shaderNames[m_shaderSelection % 4], true);
         }
+    } else if (active == 3) {
+        // The arcade core has no cheat engine; keep the tab focusable but show
+        // a clear placeholder instead of silently reusing the quick menu.
+        dl->AddText(font, 21.0f * scale, ImVec2(contentX, viewTop + 28.0f * scale), muted, "街机核心暂无金手指功能");
     } else {
         dl->AddText(font, 20.0f * scale, ImVec2(contentX, 310.0f * scale),
                     IM_COL32(204, 230, 250, (int)(219.0f * ease)), desc[active]);
@@ -1261,9 +1283,18 @@ bool GBAStationOverlay::HandleInput(SDL_GameController *controller) {
     bool togglePressed = guide || BindingPressed(controller, "arcade.hotkey.menu.pad", "PAD_START+PAD_BACK");
     if (togglePressed && !m_toggleHeld && debounced) {
         m_toggleHeld = true; m_lastInputTime = now;
-        if (m_currentMenu == OverlayMenu::None) Show();
-        else if (m_currentMenu == OverlayMenu::SaveStates || m_currentMenu == OverlayMenu::Settings) { m_currentMenu = OverlayMenu::QuickMenu; m_animTimer = 0.4f; }
-        else Hide();
+        if (m_currentMenu == OverlayMenu::None) {
+            Show();
+        } else if (m_currentMenu == OverlayMenu::SaveStates || m_currentMenu == OverlayMenu::Settings) {
+            // Toggling while inside a subpage returns to the tab bar instead of
+            // dropping into the quick menu, which would leave the subpage
+            // chrome (sidebar/rows) hidden behind the placeholder.
+            m_sidebarFocused = true;
+            m_currentMenu = OverlayMenu::QuickMenu;
+            m_animTimer = 0.4f;
+        } else {
+            Hide();
+        }
         return true;
     }
     if (!togglePressed) m_toggleHeld = false;
@@ -1290,9 +1321,21 @@ bool GBAStationOverlay::HandleInput(SDL_GameController *controller) {
     // remaps stay in the core; the sidebar switches pages immediately and
     // Right is the only way to move into a page's setting list.
     if (m_sidebarFocused) {
-        if (up && !m_upHeld && debounced) { m_upHeld = true; m_lastInputTime = now; ActivateTab((m_quickMenuSelection + 7) % 8); GBAStationAudio::PlayUiSoundGlobal(GBAStationAudio::UiSound::Focus); }
+        // Hold-to-repeat for tab navigation: first press fires immediately,
+        // holding repeats every 180 ms (mirrors flycast's frame-based repeat).
+        const bool repeatUp = up && m_upHeld && now - m_lastNavRepeatMs >= 180;
+        const bool repeatDown = down && m_downHeld && now - m_lastNavRepeatMs >= 180;
+        if ((up && !m_upHeld && debounced) || repeatUp) {
+            m_upHeld = true; m_lastInputTime = now; m_lastNavRepeatMs = now;
+            ActivateTab((m_quickMenuSelection + 7) % 8);
+            GBAStationAudio::PlayUiSoundGlobal(GBAStationAudio::UiSound::Focus);
+        }
         if (!up) m_upHeld = false;
-        if (down && !m_downHeld && debounced) { m_downHeld = true; m_lastInputTime = now; ActivateTab((m_quickMenuSelection + 1) % 8); GBAStationAudio::PlayUiSoundGlobal(GBAStationAudio::UiSound::Focus); }
+        if ((down && !m_downHeld && debounced) || repeatDown) {
+            m_downHeld = true; m_lastInputTime = now; m_lastNavRepeatMs = now;
+            ActivateTab((m_quickMenuSelection + 1) % 8);
+            GBAStationAudio::PlayUiSoundGlobal(GBAStationAudio::UiSound::Focus);
+        }
         if (!down) m_downHeld = false;
         if (right && !m_rightHeld && debounced) {
             m_rightHeld = true; m_lastInputTime = now;
@@ -1318,16 +1361,18 @@ bool GBAStationOverlay::HandleInput(SDL_GameController *controller) {
         return true;
     }
 
-    if (up && !m_upHeld && debounced) {
-        m_upHeld = true; m_lastInputTime = now;
+    const bool repeatUp = up && m_upHeld && now - m_lastNavRepeatMs >= 180;
+    const bool repeatDown = down && m_downHeld && now - m_lastNavRepeatMs >= 180;
+    if ((up && !m_upHeld && debounced) || repeatUp) {
+        m_upHeld = true; m_lastInputTime = now; m_lastNavRepeatMs = now;
         if (m_currentMenu == OverlayMenu::QuickMenu) m_quickMenuSelection = (m_quickMenuSelection + 7) % 8;
         else if (m_currentMenu == OverlayMenu::SaveStates) m_saveStateSlot = (m_saveStateSlot + 8) % 10; // previous row
         else if (m_currentMenu == OverlayMenu::Settings) m_settingsSelection = (m_settingsSelection + (m_quickMenuSelection == 5 ? 7 : 2)) % (m_quickMenuSelection == 5 ? 8 : 3);
         GBAStationAudio::PlayUiSoundGlobal(GBAStationAudio::UiSound::Focus);
     }
     if (!up) m_upHeld = false;
-    if (down && !m_downHeld && debounced) {
-        m_downHeld = true; m_lastInputTime = now;
+    if ((down && !m_downHeld && debounced) || repeatDown) {
+        m_downHeld = true; m_lastInputTime = now; m_lastNavRepeatMs = now;
         if (m_currentMenu == OverlayMenu::QuickMenu) m_quickMenuSelection = (m_quickMenuSelection + 1) % 8;
         else if (m_currentMenu == OverlayMenu::SaveStates) m_saveStateSlot = (m_saveStateSlot + 2) % 10; // next row
         else if (m_currentMenu == OverlayMenu::Settings) m_settingsSelection = (m_settingsSelection + 1) % (m_quickMenuSelection == 5 ? 8 : 3);
@@ -1373,7 +1418,7 @@ bool GBAStationOverlay::HandleInput(SDL_GameController *controller) {
             }
             ApplyScalingSettings(true);
         } else if (m_settingsSelection == 2) {
-            m_shaderSelection = (m_shaderSelection + dir + 6) % 6;
+            m_shaderSelection = (m_shaderSelection + dir + 4) % 4;
             ApplyScalingSettings(true);
         }
     }
@@ -1419,7 +1464,7 @@ bool GBAStationOverlay::HandleInput(SDL_GameController *controller) {
                 else { int s = (int)m_displaySize; s = (s >= 3) ? 0 : s+1; m_displaySize = (GambatteDisplaySize)s; }
                 ApplyScalingSettings(true);
             } else if (m_settingsSelection == 2) {
-                m_shaderSelection = (m_shaderSelection + 1) % 6;
+                m_shaderSelection = (m_shaderSelection + 1) % 4;
                 ApplyScalingSettings(true);
             }
         }

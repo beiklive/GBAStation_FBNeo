@@ -982,10 +982,10 @@ void Render()
                 LOG_DEBUG("RENDER", "Frame %d: RunFrame returned", frameCount);
             }
         }
-        else
-        {
-            g_core->ApplyPendingOptions();
-        }
+        // While the menu is open the core is paused; applying an option change
+        // here would run one emulated frame just to refresh a variable, which
+        // visibly advances the game behind the menu.  Keep the option pending
+        // and let the next RunFrame (after the menu closes) pick it up.
     }
 
     glViewport(0, 0, w, h);

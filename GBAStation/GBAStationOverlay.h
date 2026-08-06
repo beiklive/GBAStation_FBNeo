@@ -133,6 +133,7 @@ private:
     bool m_toggleHeld = false;
     bool m_xHeld = false;
     uint32_t m_lastInputTime = 0;
+    uint32_t m_lastNavRepeatMs = 0;
     static constexpr uint32_t DEBOUNCE_MS = 200;
 
     bool m_shouldExitToSystem = false;
