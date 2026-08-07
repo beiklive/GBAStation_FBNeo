@@ -16,13 +16,38 @@ GBAStationTranslationManager& GBAStationTranslationManager::Instance() {
 bool GBAStationTranslationManager::Init() {
     std::string language = "Chinese";
 
-    std::ifstream cfgFile("sdmc:/GBAStation/config/general.jsonc");
+    // Prefer the launcher's UI.language (config.cfg, values zh-CN / en-US).
+    // Fall back to general.jsonc's "language" for standalone/older launches.
+    std::ifstream cfgFile("sdmc:/GBAStation/config/config.cfg");
     if (cfgFile.is_open()) {
-        json cfg = json::parse(cfgFile, nullptr, false, true);
-        if (!cfg.is_discarded() && cfg.contains("language") && cfg["language"].is_string()) {
-            language = cfg["language"].get<std::string>();
+        std::string line;
+        while (std::getline(cfgFile, line)) {
+            const size_t equals = line.find('=');
+            if (equals == std::string::npos)
+                continue;
+            const std::string key = line.substr(0, equals);
+            if (key != "UI.language")
+                continue;
+            std::string value = line.substr(equals + 1);
+            if (!value.empty() && value.front() == '"' && value.back() == '"' && value.size() >= 2)
+                value = value.substr(1, value.size() - 2);
+            if (value == "en-US" || value == "en")
+                language = "English";
+            else
+                language = "Chinese";
+            break;
         }
         cfgFile.close();
+    }
+    if (language == "Chinese") {
+        std::ifstream cfgFile2("sdmc:/GBAStation/config/general.jsonc");
+        if (cfgFile2.is_open()) {
+            json cfg = json::parse(cfgFile2, nullptr, false, true);
+            if (!cfg.is_discarded() && cfg.contains("language") && cfg["language"].is_string()) {
+                language = cfg["language"].get<std::string>();
+            }
+            cfgFile2.close();
+        }
     }
 
     if (m_currentLanguage == language && !m_translations.empty()) {

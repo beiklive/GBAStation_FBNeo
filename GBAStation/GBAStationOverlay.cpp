@@ -238,6 +238,7 @@ std::string ConfigOverrideValue(const char *key) {
 } // namespace
 
 GBAStationOverlay::GBAStationOverlay() {
+    GBAStationTranslationManager::Instance().Init();
     m_gameTitle = "Arcade";
     LoadOverlayBindings();
     LoadConfig();
@@ -722,11 +723,11 @@ void GBAStationOverlay::RenderOverlayBackground(ImDrawList *dl, ImVec2 displaySi
 void GBAStationOverlay::RenderTitleCard(ImDrawList *dl, ImVec2 displaySize) {
     if (m_animTimer <= 0.0f) return;
 
-    std::string titleStr = "游戏菜单";
+    std::string titleStr = tr("游戏菜单");
     if (m_currentMenu == OverlayMenu::SaveStates) {
-        titleStr = m_isSaveMode ? "保存状态" : "读取状态";
+        titleStr = m_isSaveMode ? tr("保存状态") : tr("读取状态");
     } else if (m_currentMenu == OverlayMenu::Settings) {
-        titleStr = "画面设置";
+        titleStr = tr("画面设置");
     }
 
     float scale = ImGui::GetIO().FontGlobalScale;
@@ -863,9 +864,9 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
     const float height = displaySize.y;
     const ImVec2 min(0.0f, 0.0f);
     const ImVec2 max(min.x + width, min.y + height);
-    const char *tabs[] = {"返回游戏", "保存状态", "读取状态", "金手指", "画面设置", "功能设置", "重置游戏", "退出游戏"};
+    const std::string tabs[] = {tr("返回游戏"), tr("保存状态"), tr("读取状态"), tr("金手指"), tr("画面设置"), tr("功能设置"), tr("重置游戏"), tr("退出游戏")};
     const int icons[] = {0xE5C4, 0xE161, 0xE2C6, 0xE3AE, 0xE333, 0xE8B8, 0xE5D5, 0xE879};
-    const char *desc[] = {"继续当前游戏。", "创建即时存档。", "读取即时存档。", "管理游戏金手指。", "调整画面比例和缩放。", "调整可即时生效的核心选项。", "重新启动当前游戏。", "返回 GBAStation。"};
+    const std::string desc[] = {tr("继续当前游戏。"), tr("创建即时存档。"), tr("读取即时存档。"), tr("管理游戏金手指。"), tr("调整画面比例和缩放。"), tr("调整可即时生效的核心选项。"), tr("重新启动当前游戏。"), tr("返回 GBAStation。")};
     const int active = m_quickMenuSelection;
 
     // 3DS palette
@@ -892,7 +893,7 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
     }
 
     // Title
-    dl->AddText(font, 26.0f * scale, ImVec2(64.0f * scale, 58.0f * scale), white, "游戏菜单");
+    dl->AddText(font, 26.0f * scale, ImVec2(64.0f * scale, 58.0f * scale), white, tr("游戏菜单").c_str());
     dl->AddRectFilled(ImVec2(56.0f * scale, 92.0f * scale),
                       ImVec2(width - 56.0f * scale, 93.0f * scale), IM_COL32(255, 255, 255, (int)(46.0f * ease)));
 
@@ -924,7 +925,7 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
         dl->AddText(font, 25.0f * scale, ImVec2(sidebarX + 34.0f * scale, y + itemH * 0.5f - 12.5f * scale),
                     selected ? white : muted, iconBuf);
         dl->AddText(font, 21.0f * scale, ImVec2(sidebarX + 64.0f * scale, textY),
-                    selected ? white : muted, tabs[i]);
+                    selected ? white : muted, tabs[i].c_str());
     }
     // Reset separator
     dl->AddRectFilled(ImVec2(sidebarX + 18.0f * scale, sidebarY + 6.0f * step - 9.0f * scale),
@@ -943,7 +944,7 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
     const float rowH = 48.0f * scale;
     const float rowGap = 4.0f * scale;
 
-    dl->AddText(font, 27.0f * scale, ImVec2(contentX, 116.0f * scale), white, tabs[active]);
+    dl->AddText(font, 27.0f * scale, ImVec2(contentX, 116.0f * scale), white, tabs[active].c_str());
     dl->AddRectFilled(ImVec2(contentX, 162.0f * scale),
                       ImVec2(contentX + contentW, 163.0f * scale), IM_COL32(0, 122, 204, (int)(71.0f * ease)));
     auto drawRow = [&](int row, bool focused, const char *iconUtf8, const std::string &label,
@@ -1071,7 +1072,7 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
                             IM_COL32(160, 200, 230, (int)(110.0f * ease)), snapIcon);
                 // Right side: slot name + save time.
                 const float textX = snapX + snapW + 12.0f * scale;
-                const std::string title = "存档槽 " + std::to_string(slot + 1);
+                const std::string title = tr("存档槽 ") + std::to_string(slot + 1);
                 dl->AddText(font, 20.0f * scale, ImVec2(textX, y + 26.0f * scale),
                             focused ? white : muted, title.c_str());
                 if (exists) {
@@ -1087,7 +1088,7 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
                                 cyan, timeBuf);
                 } else {
                     dl->AddText(font, 16.0f * scale, ImVec2(textX, y + cellH - 42.0f * scale),
-                                muted, "空存档槽");
+                                muted, tr("空存档槽").c_str());
                 }
             }
         }
@@ -1100,7 +1101,7 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
                     IM_COL32(184, 204, 224, (int)(160.0f * ease)), scrollHint.c_str());
     } else if (m_currentMenu == OverlayMenu::Settings) {
         if (active == 5) {
-            const char *labels[] = {"跳帧模式", "固定跳帧", "CPU 速度", "低通滤波", "FM 插值", "采样率", "强制 60Hz", "32 位色深"};
+            const std::string labels[] = {tr("跳帧模式"), tr("固定跳帧"), tr("CPU 速度"), tr("低通滤波"), tr("FM 插值"), tr("采样率"), tr("强制 60Hz"), tr("32 位色深")};
             const char *keys[] = {"fbneo-frameskip-type", "fbneo-fixed-frameskip", "fbneo-cpu-speed-adjust", "fbneo-lowpass-filter", "fbneo-fm-interpolation", "fbneo-samplerate", "fbneo-force-60hz", "fbneo-allow-depth-32"};
             const int rowIcons[] = {0xE8E5, 0xE8E5, 0xE896, 0xE8B8, 0xE873, 0xE8F1, 0xE8E5, 0xE873};
             const int total = 8;
@@ -1108,11 +1109,11 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
             const int first = std::clamp(m_settingsSelection - visible / 2, 0, std::max(0, total - visible));
             for (int row = 0; row < visible; ++row) {
                 const int option = first + row;
-                std::string value = m_core ? m_core->GetCoreOption(keys[option], "默认") : "默认";
+                std::string value = m_core ? m_core->GetCoreOption(keys[option], tr("默认")) : tr("默认");
                 // The core has no defaults table; an unset option reports
                 // "默认".  Surface the first real option instead so the menu
                 // never shows a non-selectable placeholder value.
-                if (value == "默认") {
+                if (value == tr("默认")) {
                     static const char *const kDefaults[8] = {
                         "disabled", "0", "100%", "disabled", "disabled", "44100", "disabled", "disabled",
                     };
@@ -1123,44 +1124,44 @@ void GBAStationOverlay::RenderGBAStationMenu(ImDrawList *dl, ImVec2 displaySize)
                 // samplerate / allow-depth-32 are consumed at game load; the
                 // core can't re-apply them live (unlike the frame/pacing ones).
                 if (option == 5 || option == 7)
-                    value += "（重启后生效）";
+                    value += tr("（重启后生效）");
                 char icon[8];
                 EncodeUtf8(icon, rowIcons[option]);
                 drawRow(row, inContent && option == m_settingsSelection, icon, labels[option], value,
                         true);
             }
         } else {
-            const std::string mode = m_displayMode == GambatteDisplayMode::Integer ? "整数缩放" : "比例显示";
-            std::string size = m_displayMode == GambatteDisplayMode::Integer ? "自动" : "原始比例";
-            if (m_displaySize == GambatteDisplaySize::_1x) size = "1x"; else if (m_displaySize == GambatteDisplaySize::_2x) size = "2x"; else if (m_displaySize == GambatteDisplaySize::Stretch) size = "拉伸"; else if (m_displaySize == GambatteDisplaySize::_4_3) size = "4:3"; else if (m_displaySize == GambatteDisplaySize::_16_9) size = "16:9";
+            const std::string mode = m_displayMode == GambatteDisplayMode::Integer ? tr("整数缩放") : tr("比例显示");
+            std::string size = m_displayMode == GambatteDisplayMode::Integer ? tr("自动") : tr("原始比例");
+            if (m_displaySize == GambatteDisplaySize::_1x) size = "1x"; else if (m_displaySize == GambatteDisplaySize::_2x) size = "2x"; else if (m_displaySize == GambatteDisplaySize::Stretch) size = tr("拉伸"); else if (m_displaySize == GambatteDisplaySize::_4_3) size = "4:3"; else if (m_displaySize == GambatteDisplaySize::_16_9) size = "16:9";
             char icon[8];
             EncodeUtf8(icon, 0xE8F1);
-            drawRow(0, inContent && m_settingsSelection == 0, icon, "显示模式", mode, true);
+            drawRow(0, inContent && m_settingsSelection == 0, icon, tr("显示模式"), mode, true);
             EncodeUtf8(icon, 0xE3F4);
-            drawRow(1, inContent && m_settingsSelection == 1, icon, "画面比例", size, true);
+            drawRow(1, inContent && m_settingsSelection == 1, icon, tr("画面比例"), size, true);
             EncodeUtf8(icon, 0xE3B6);
             const char *shaderNames[] = {"无", "xBRZ", "Eagle", "CRT Easy Mode"};
-            drawRow(2, inContent && m_settingsSelection == 2, icon, "着色器",
+            drawRow(2, inContent && m_settingsSelection == 2, icon, tr("着色器"),
                     shaderNames[m_shaderSelection % 4], true);
         }
     } else if (active == 3) {
         // The arcade core has no cheat engine; keep the tab focusable but show
         // a clear placeholder instead of silently reusing the quick menu.
-        dl->AddText(font, 21.0f * scale, ImVec2(contentX, viewTop + 28.0f * scale), muted, "街机核心暂无金手指功能");
+        dl->AddText(font, 21.0f * scale, ImVec2(contentX, viewTop + 28.0f * scale), muted, tr("街机核心暂无金手指功能").c_str());
     } else {
         dl->AddText(font, 20.0f * scale, ImVec2(contentX, 310.0f * scale),
-                    IM_COL32(204, 230, 250, (int)(219.0f * ease)), desc[active]);
+                    IM_COL32(204, 230, 250, (int)(219.0f * ease)), desc[active].c_str());
     }
 }
 
 void GBAStationOverlay::RenderQuickMenu(ImDrawList *dl, ImVec2 displaySize) {
     float scale = ImGui::GetIO().FontGlobalScale;
-    std::string items[] = {"保存状态", "读取状态", "画面设置", "退出游戏"};
-    const char* descriptions[] = {
-        "写入当前游戏状态到所选槽位。",
-        "从所选槽位恢复游戏状态。",
-        "调整画面比例、整数缩放和着色器。",
-        "关闭街机核心并返回 GBAStation。",
+    std::string items[] = {tr("保存状态"), tr("读取状态"), tr("画面设置"), tr("退出游戏")};
+    const std::string descriptions[] = {
+        tr("写入当前游戏状态到所选槽位。"),
+        tr("从所选槽位恢复游戏状态。"),
+        tr("调整画面比例、整数缩放和着色器。"),
+        tr("关闭街机核心并返回 GBAStation。"),
     };
     const int N = 4; float itemH = 70.0f * scale;
     ImVec2 menuPos, menuSize; float easeOut, cornerRadius;
@@ -1172,7 +1173,7 @@ void GBAStationOverlay::RenderQuickMenu(ImDrawList *dl, ImVec2 displaySize) {
                 items[m_quickMenuSelection].c_str());
     dl->AddText(font, ImGui::GetFontSize() * 0.72f, ImVec2(440.0f * scale, 196.0f * scale),
                 IM_COL32(196, 222, 216, static_cast<int>(255 * easeOut)),
-                descriptions[m_quickMenuSelection]);
+                descriptions[m_quickMenuSelection].c_str());
     dl->AddText(font, ImGui::GetFontSize() * 0.68f, ImVec2(440.0f * scale, 258.0f * scale),
                 IM_COL32(160, 200, 190, static_cast<int>(220 * easeOut)),
                 m_gameTitle.empty() ? "当前游戏: Arcade" : m_gameTitle.c_str());
@@ -1189,16 +1190,16 @@ void GBAStationOverlay::RenderSaveStatesMenu(ImDrawList *dl, ImVec2 displaySize)
         bool exists = false;
         if (m_core && m_core->IsGameLoaded()) { struct stat buffer; exists = (stat(GetStatePath(m_core, i).c_str(), &buffer) == 0); }
         char slotText[128];
-        snprintf(slotText, sizeof(slotText), "槽位 %d  %s", i + 1, exists ? "已保存" : "空");
+        snprintf(slotText, sizeof(slotText), tr("槽位 %d  %s").c_str(), i + 1, exists ? tr("已保存").c_str() : "空");
         RenderMenuItem(dl, menuPos, menuSize, i, N, itemH, m_saveStateSlot==i, cornerRadius, easeOut, m_isDarkMode, font, fs, slotText);
         if (m_saveStateSlot == i) selectedExists = exists;
     }
-    const char* action = m_isSaveMode ? "保存到当前槽位" : "从当前槽位读取";
-    const char* status = selectedExists ? "当前槽位已有存档" : "当前槽位为空";
+    const std::string action = m_isSaveMode ? tr("保存到当前槽位") : tr("从当前槽位读取");
+    const std::string status = selectedExists ? tr("当前槽位已有存档") : tr("当前槽位为空");
     dl->AddText(font, ImGui::GetFontSize() * 0.9f, ImVec2(440.0f * scale, 150.0f * scale),
-                IM_COL32(238, 247, 255, static_cast<int>(255 * easeOut)), action);
+                IM_COL32(238, 247, 255, static_cast<int>(255 * easeOut)), action.c_str());
     dl->AddText(font, ImGui::GetFontSize() * 0.72f, ImVec2(440.0f * scale, 196.0f * scale),
-                IM_COL32(154, 178, 197, static_cast<int>(255 * easeOut)), status);
+                IM_COL32(154, 178, 197, static_cast<int>(255 * easeOut)), status.c_str());
 }
 
 void GBAStationOverlay::RenderSettingsMenu(ImDrawList *dl, ImVec2 displaySize) {
@@ -1218,16 +1219,16 @@ void GBAStationOverlay::RenderSettingsMenu(ImDrawList *dl, ImVec2 displaySize) {
                               cornerRadius);
         }
         std::string label, value;
-        if (i == 0) { label = "显示模式"; value = (m_displayMode == GambatteDisplayMode::Integer) ? "整数缩放" : "自适应"; }
+        if (i == 0) { label = tr("显示模式"); value = (m_displayMode == GambatteDisplayMode::Integer) ? tr("整数缩放") : tr("自适应"); }
         else if (i == 1) {
-            label = "画面比例";
+            label = tr("画面比例");
             if (m_displayMode == GambatteDisplayMode::Integer) {
-                switch (m_displaySize) { case GambatteDisplaySize::_1x: value="1x"; break; case GambatteDisplaySize::_2x: value="2x"; break; default: value="自动"; break; }
+                switch (m_displaySize) { case GambatteDisplaySize::_1x: value="1x"; break; case GambatteDisplaySize::_2x: value="2x"; break; default: value=tr("自动"); break; }
             } else {
-                switch (m_displaySize) { case GambatteDisplaySize::Stretch: value="拉伸"; break; case GambatteDisplaySize::_4_3: value="4:3"; break; case GambatteDisplaySize::_16_9: value="16:9"; break; default: value="原始"; break; }
+                switch (m_displaySize) { case GambatteDisplaySize::Stretch: value=tr("拉伸"); break; case GambatteDisplaySize::_4_3: value="4:3"; break; case GambatteDisplaySize::_16_9: value="16:9"; break; default: value=tr("原始"); break; }
             }
         } else if (i == 2) {
-            label = "着色器";
+            label = tr("着色器");
             const char *shaderNames[] = {"无", "xBRZ", "Eagle", "CRT Easy Mode"};
             value = shaderNames[m_shaderSelection % 4];
         }
@@ -1255,14 +1256,14 @@ void GBAStationOverlay::RenderHelpersBar(ImDrawList *dl, ImVec2 displaySize) {
     ImFont *font = ImGui::GetFont();
 
     // 3DS footer: B and A button hints pinned to the bottom right.
-    const char *bLabel = (m_sidebarFocused || m_currentMenu == OverlayMenu::QuickMenu) ? "返回" : "返回列表";
-    const char *aLabel = nullptr;
+    const std::string bLabel = (m_sidebarFocused || m_currentMenu == OverlayMenu::QuickMenu) ? tr("返回") : tr("返回列表");
+    std::string aLabel;
     if (m_currentMenu == OverlayMenu::SaveStates)
-        aLabel = m_isSaveMode ? "保存" : "读取";
+        aLabel = m_isSaveMode ? tr("保存") : tr("读取");
     else if (m_currentMenu == OverlayMenu::Settings)
-        aLabel = "调整";
+        aLabel = tr("调整");
     else
-        aLabel = "确定";
+        aLabel = tr("确定");
 
     const ImU32 hintColor = IM_COL32(184, 204, 224, (int)(199.0f * easeOut));
     char iconB[8], iconA[8];
@@ -1271,9 +1272,9 @@ void GBAStationOverlay::RenderHelpersBar(ImDrawList *dl, ImVec2 displaySize) {
     // 3DS footer baselines: icons at 636, labels at 648.
     const float baseY = displaySize.y - 42.0f * scale;
     dl->AddText(font, 27.0f * scale, ImVec2(1020.0f * scale, baseY - 27.0f * scale * 0.5f), hintColor, iconB);
-    dl->AddText(font, 19.0f * scale, ImVec2(1042.0f * scale, baseY - 19.0f * scale * 0.5f), hintColor, bLabel);
+    dl->AddText(font, 19.0f * scale, ImVec2(1042.0f * scale, baseY - 19.0f * scale * 0.5f), hintColor, bLabel.c_str());
     dl->AddText(font, 27.0f * scale, ImVec2(1152.0f * scale, baseY - 27.0f * scale * 0.5f), hintColor, iconA);
-    dl->AddText(font, 19.0f * scale, ImVec2(1174.0f * scale, baseY - 19.0f * scale * 0.5f), hintColor, aLabel);
+    dl->AddText(font, 19.0f * scale, ImVec2(1174.0f * scale, baseY - 19.0f * scale * 0.5f), hintColor, aLabel.c_str());
 }
 
 bool GBAStationOverlay::HandleInput(SDL_GameController *controller) {
