@@ -93,3 +93,24 @@ unsigned int64  UINT64;
 
 ```
 It is recommended that you take a look at the other #defines and structs in the header files in Burn and Burner, and don't forget that some of the existing code in the intf directory will come in handy for new ports. 
+
+---
+
+## Build (GBAStation Nintendo Switch port)
+
+Requires devkitPro (devkitA64) and the `rcheevos` submodule. The output
+`GBAStationFBNeoStub.nro` is written to the repository root.
+
+```bash
+# 普通完整编译
+bash build_local.sh
+
+# 清理后完整编译
+bash build_local.sh --clean
+
+# 指定线程数
+bash build_local.sh -j 8
+```
+
+`build_local.sh` drives `build_fbneo_nro.sh`, which builds the libretro core
+and the GBAStation stub NRO. Pushing a `v*` tag runs the release CI build.
